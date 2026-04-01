@@ -11,45 +11,45 @@ func TestResultCodeString(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		code     sqlite.ResultCode
+		code     int
 		expected string
 	}{
-		{sqlite.ABORT, "ABORT"},
-		{sqlite.AUTH, "AUTH"},
-		{sqlite.BUSY, "BUSY"},
-		{sqlite.CANTOPEN, "CANTOPEN"},
-		{sqlite.CONSTRAINT, "CONSTRAINT"},
-		{sqlite.CORRUPT, "CORRUPT"},
-		{sqlite.DONE, "DONE"},
-		{sqlite.EMPTY, "EMPTY"},
-		{sqlite.ERROR, "ERROR"},
-		{sqlite.FORMAT, "FORMAT"},
-		{sqlite.FULL, "FULL"},
-		{sqlite.INTERNAL, "INTERNAL"},
-		{sqlite.INTERRUPT, "INTERRUPT"},
-		{sqlite.IOERR, "IOERR"},
-		{sqlite.LOCKED, "LOCKED"},
-		{sqlite.MISMATCH, "MISMATCH"},
-		{sqlite.MISUSE, "MISUSE"},
-		{sqlite.NOLFS, "NOLFS"},
-		{sqlite.NOMEM, "NOMEM"},
-		{sqlite.NOTADB, "NOTADB"},
-		{sqlite.NOTFOUND, "NOTFOUND"},
-		{sqlite.NOTICE, "NOTICE"},
-		{sqlite.OK, "OK"},
-		{sqlite.PERM, "PERM"},
-		{sqlite.PROTOCOL, "PROTOCOL"},
-		{sqlite.RANGE, "RANGE"},
-		{sqlite.READONLY, "READONLY"},
-		{sqlite.ROW, "ROW"},
-		{sqlite.SCHEMA, "SCHEMA"},
-		{sqlite.TOOBIG, "TOOBIG"},
-		{sqlite.WARNING, "WARNING"},
-		{sqlite.ResultCode(999), "UNKNOWN"},
+		{sqlite.ResultCodeAbort, "ABORT"},
+		{sqlite.ResultCodeAuth, "AUTH"},
+		{sqlite.ResultCodeBusy, "BUSY"},
+		{sqlite.ResultCodeCantOpen, "CANTOPEN"},
+		{sqlite.ResultCodeConstraint, "CONSTRAINT"},
+		{sqlite.ResultCodeCorrupt, "CORRUPT"},
+		{sqlite.ResultCodeDone, "DONE"},
+		{sqlite.ResultCodeEmpty, "EMPTY"},
+		{sqlite.ResultCodeError, "ERROR"},
+		{sqlite.ResultCodeFormat, "FORMAT"},
+		{sqlite.ResultCodeFull, "FULL"},
+		{sqlite.ResultCodeInternal, "INTERNAL"},
+		{sqlite.ResultCodeInterrupt, "INTERRUPT"},
+		{sqlite.ResultCodeIOErr, "IOERR"},
+		{sqlite.ResultCodeLocked, "LOCKED"},
+		{sqlite.ResultCodeMismatch, "MISMATCH"},
+		{sqlite.ResultCodeMisuse, "MISUSE"},
+		{sqlite.ResultCodeNoLFS, "NOLFS"},
+		{sqlite.ResultCodeNoMem, "NOMEM"},
+		{sqlite.ResultCodeNotADB, "NOTADB"},
+		{sqlite.ResultCodeNotFound, "NOTFOUND"},
+		{sqlite.ResultCodeNotice, "NOTICE"},
+		{sqlite.ResultCodeOK, "OK"},
+		{sqlite.ResultCodePerm, "PERM"},
+		{sqlite.ResultCodeProtocol, "PROTOCOL"},
+		{sqlite.ResultCodeRange, "RANGE"},
+		{sqlite.ResultCodeReadOnly, "READONLY"},
+		{sqlite.ResultCodeRow, "ROW"},
+		{sqlite.ResultCodeSchema, "SCHEMA"},
+		{sqlite.ResultCodeTooBig, "TOOBIG"},
+		{sqlite.ResultCodeWarning, "WARNING"},
+		{999, "UNKNOWN"},
 	}
 
 	for _, test := range tests {
-		require.Equal(t, test.expected, test.code.String())
+		require.Equal(t, test.expected, sqlite.ResultCodeText(test.code))
 	}
 }
 
@@ -57,7 +57,7 @@ func TestError(t *testing.T) {
 	t.Parallel()
 
 	err := &sqlite.Error{
-		Code:    sqlite.CANTOPEN,
+		Code:    sqlite.ResultCodeCantOpen,
 		Message: "unable to open database file",
 	}
 

@@ -6,100 +6,138 @@ package sqlite
 */
 import "C"
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 )
 
-type ResultCode int
-
 const (
-	ABORT      ResultCode = C.SQLITE_ABORT
-	AUTH       ResultCode = C.SQLITE_AUTH
-	BUSY       ResultCode = C.SQLITE_BUSY
-	CANTOPEN   ResultCode = C.SQLITE_CANTOPEN
-	CONSTRAINT ResultCode = C.SQLITE_CONSTRAINT
-	CORRUPT    ResultCode = C.SQLITE_CORRUPT
-	DONE       ResultCode = C.SQLITE_DONE
-	EMPTY      ResultCode = C.SQLITE_EMPTY
-	ERROR      ResultCode = C.SQLITE_ERROR
-	FORMAT     ResultCode = C.SQLITE_FORMAT
-	FULL       ResultCode = C.SQLITE_FULL
-	INTERNAL   ResultCode = C.SQLITE_INTERNAL
-	INTERRUPT  ResultCode = C.SQLITE_INTERRUPT
-	IOERR      ResultCode = C.SQLITE_IOERR
-	LOCKED     ResultCode = C.SQLITE_LOCKED
-	MISMATCH   ResultCode = C.SQLITE_MISMATCH
-	MISUSE     ResultCode = C.SQLITE_MISUSE
-	NOLFS      ResultCode = C.SQLITE_NOLFS
-	NOMEM      ResultCode = C.SQLITE_NOMEM
-	NOTADB     ResultCode = C.SQLITE_NOTADB
-	NOTFOUND   ResultCode = C.SQLITE_NOTFOUND
-	NOTICE     ResultCode = C.SQLITE_NOTICE
-	OK         ResultCode = C.SQLITE_OK
-	PERM       ResultCode = C.SQLITE_PERM
-	PROTOCOL   ResultCode = C.SQLITE_PROTOCOL
-	RANGE      ResultCode = C.SQLITE_RANGE
-	READONLY   ResultCode = C.SQLITE_READONLY
-	ROW        ResultCode = C.SQLITE_ROW
-	SCHEMA     ResultCode = C.SQLITE_SCHEMA
-	TOOBIG     ResultCode = C.SQLITE_TOOBIG
-	WARNING    ResultCode = C.SQLITE_WARNING
+	ResultCodeAbort      = C.SQLITE_ABORT
+	ResultCodeAuth       = C.SQLITE_AUTH
+	ResultCodeBusy       = C.SQLITE_BUSY
+	ResultCodeCantOpen   = C.SQLITE_CANTOPEN
+	ResultCodeConstraint = C.SQLITE_CONSTRAINT
+	ResultCodeCorrupt    = C.SQLITE_CORRUPT
+	ResultCodeDone       = C.SQLITE_DONE
+	ResultCodeEmpty      = C.SQLITE_EMPTY
+	ResultCodeError      = C.SQLITE_ERROR
+	ResultCodeFormat     = C.SQLITE_FORMAT
+	ResultCodeFull       = C.SQLITE_FULL
+	ResultCodeInternal   = C.SQLITE_INTERNAL
+	ResultCodeInterrupt  = C.SQLITE_INTERRUPT
+	ResultCodeIOErr      = C.SQLITE_IOERR
+	ResultCodeLocked     = C.SQLITE_LOCKED
+	ResultCodeMismatch   = C.SQLITE_MISMATCH
+	ResultCodeMisuse     = C.SQLITE_MISUSE
+	ResultCodeNoLFS      = C.SQLITE_NOLFS
+	ResultCodeNoMem      = C.SQLITE_NOMEM
+	ResultCodeNotADB     = C.SQLITE_NOTADB
+	ResultCodeNotFound   = C.SQLITE_NOTFOUND
+	ResultCodeNotice     = C.SQLITE_NOTICE
+	ResultCodeOK         = C.SQLITE_OK
+	ResultCodePerm       = C.SQLITE_PERM
+	ResultCodeProtocol   = C.SQLITE_PROTOCOL
+	ResultCodeRange      = C.SQLITE_RANGE
+	ResultCodeReadOnly   = C.SQLITE_READONLY
+	ResultCodeRow        = C.SQLITE_ROW
+	ResultCodeSchema     = C.SQLITE_SCHEMA
+	ResultCodeTooBig     = C.SQLITE_TOOBIG
+	ResultCodeWarning    = C.SQLITE_WARNING
 )
 
-func (r ResultCode) String() string {
-	names := map[ResultCode]string{
-		ABORT:      "ABORT",
-		AUTH:       "AUTH",
-		BUSY:       "BUSY",
-		CANTOPEN:   "CANTOPEN",
-		CONSTRAINT: "CONSTRAINT",
-		CORRUPT:    "CORRUPT",
-		DONE:       "DONE",
-		EMPTY:      "EMPTY",
-		ERROR:      "ERROR",
-		FORMAT:     "FORMAT",
-		FULL:       "FULL",
-		INTERNAL:   "INTERNAL",
-		INTERRUPT:  "INTERRUPT",
-		IOERR:      "IOERR",
-		LOCKED:     "LOCKED",
-		MISMATCH:   "MISMATCH",
-		MISUSE:     "MISUSE",
-		NOLFS:      "NOLFS",
-		NOMEM:      "NOMEM",
-		NOTADB:     "NOTADB",
-		NOTFOUND:   "NOTFOUND",
-		NOTICE:     "NOTICE",
-		OK:         "OK",
-		PERM:       "PERM",
-		PROTOCOL:   "PROTOCOL",
-		RANGE:      "RANGE",
-		READONLY:   "READONLY",
-		ROW:        "ROW",
-		SCHEMA:     "SCHEMA",
-		TOOBIG:     "TOOBIG",
-		WARNING:    "WARNING",
-	}
-
-	name, ok := names[r]
-	if !ok {
+func ResultCodeText(code int) string {
+	switch code {
+	case ResultCodeAbort:
+		return "ABORT"
+	case ResultCodeAuth:
+		return "AUTH"
+	case ResultCodeBusy:
+		return "BUSY"
+	case ResultCodeCantOpen:
+		return "CANTOPEN"
+	case ResultCodeConstraint:
+		return "CONSTRAINT"
+	case ResultCodeCorrupt:
+		return "CORRUPT"
+	case ResultCodeDone:
+		return "DONE"
+	case ResultCodeEmpty:
+		return "EMPTY"
+	case ResultCodeError:
+		return "ERROR"
+	case ResultCodeFormat:
+		return "FORMAT"
+	case ResultCodeFull:
+		return "FULL"
+	case ResultCodeInternal:
+		return "INTERNAL"
+	case ResultCodeInterrupt:
+		return "INTERRUPT"
+	case ResultCodeIOErr:
+		return "IOERR"
+	case ResultCodeLocked:
+		return "LOCKED"
+	case ResultCodeMismatch:
+		return "MISMATCH"
+	case ResultCodeMisuse:
+		return "MISUSE"
+	case ResultCodeNoLFS:
+		return "NOLFS"
+	case ResultCodeNoMem:
+		return "NOMEM"
+	case ResultCodeNotADB:
+		return "NOTADB"
+	case ResultCodeNotFound:
+		return "NOTFOUND"
+	case ResultCodeNotice:
+		return "NOTICE"
+	case ResultCodeOK:
+		return "OK"
+	case ResultCodePerm:
+		return "PERM"
+	case ResultCodeProtocol:
+		return "PROTOCOL"
+	case ResultCodeRange:
+		return "RANGE"
+	case ResultCodeReadOnly:
+		return "READONLY"
+	case ResultCodeRow:
+		return "ROW"
+	case ResultCodeSchema:
+		return "SCHEMA"
+	case ResultCodeTooBig:
+		return "TOOBIG"
+	case ResultCodeWarning:
+		return "WARNING"
+	default:
 		return "UNKNOWN"
 	}
-
-	return name
 }
+
+const (
+	DataTypeInteger = C.SQLITE_INTEGER
+	DataTypeFloat   = C.SQLITE_FLOAT
+	DataTypeBlob    = C.SQLITE_BLOB
+	DataTypeNull    = C.SQLITE_NULL
+	DataTypeText    = C.SQLITE3_TEXT
+)
 
 type Error struct {
 	Message string
-	Code    ResultCode
+	Code    int
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("sqlite3 error %s(%d): %s", e.Code.String(), e.Code, e.Message)
+	return fmt.Sprintf("sqlite3 error %s(%d): %s", ResultCodeText(e.Code), e.Code, e.Message)
 }
 
 type Conn struct {
 	conn *C.sqlite3
+}
+
+type Statement struct {
+	columnCount int
+	statement   *C.sqlite3_stmt
 }
 
 func Open(filename string) (*Conn, error) {
@@ -111,7 +149,7 @@ func Open(filename string) (*Conn, error) {
 	rv := C.sqlite3_open(filenamePtr, &conn)
 	if rv != C.SQLITE_OK {
 		err := &Error{
-			Code:    ResultCode(rv),
+			Code:    int(rv),
 			Message: C.GoString(C.sqlite3_errmsg(conn)),
 		}
 
@@ -126,10 +164,110 @@ func (c *Conn) Close() error {
 	rv := C.sqlite3_close(c.conn)
 	if rv != C.SQLITE_OK {
 		return &Error{
-			Code:    ResultCode(rv),
+			Code:    int(rv),
 			Message: C.GoString(C.sqlite3_errmsg(c.conn)),
 		}
 	}
 
 	return nil
+}
+
+func (c *Conn) Prepare(query string) (*Statement, error) {
+	queryPtr := C.CString(query)
+	defer C.free(unsafe.Pointer(queryPtr))
+
+	var statement *C.sqlite3_stmt
+
+	rv := C.sqlite3_prepare_v2(c.conn, queryPtr, C.int(len(query)+1), &statement, nil)
+	if rv != C.SQLITE_OK {
+		return nil, &Error{
+			Code:    int(rv),
+			Message: C.GoString(C.sqlite3_errstr(rv)),
+		}
+	}
+
+	return &Statement{
+		columnCount: int(C.sqlite3_column_count(statement)),
+		statement:   statement,
+	}, nil
+}
+
+func (s *Statement) ColumnCount() int {
+	return s.columnCount
+}
+
+func (s *Statement) Finalize() error {
+	rv := C.sqlite3_finalize(s.statement)
+	if rv != C.SQLITE_OK {
+		return &Error{
+			Code:    int(rv),
+			Message: C.GoString(C.sqlite3_errstr(rv)),
+		}
+	}
+
+	return nil
+}
+
+func (s *Statement) Step() (bool, error) {
+	rv := C.sqlite3_step(s.statement)
+	if rv == C.SQLITE_ROW {
+		return true, nil
+	} else if rv == C.SQLITE_DONE {
+		return false, nil
+	}
+
+	return false, &Error{
+		Code:    int(rv),
+		Message: C.GoString(C.sqlite3_errstr(rv)),
+	}
+}
+
+func (s *Statement) getColumn(i int) (any, error) {
+
+	columnType := int(C.sqlite3_column_type(s.statement, C.int(i)))
+	switch columnType {
+	case DataTypeInteger:
+		return int64(C.sqlite3_column_int64(s.statement, C.int(i))), nil
+
+	case DataTypeFloat:
+		return float64(C.sqlite3_column_double(s.statement, C.int(i))), nil
+
+	case DataTypeBlob:
+		ptr := C.sqlite3_column_blob(s.statement, C.int(i))
+		size := C.sqlite3_column_bytes(s.statement, C.int(i))
+		return C.GoBytes(ptr, size), nil
+
+	case DataTypeNull:
+		return nil, nil
+
+	case DataTypeText:
+		ptr := C.sqlite3_column_text(s.statement, C.int(i))
+		return C.GoString((*C.char)(unsafe.Pointer(ptr))), nil
+
+	default:
+		return nil, fmt.Errorf("unexpected column type: %d", columnType)
+	}
+}
+
+func (s *Statement) Column(i int) (any, error) {
+	if i < 0 || i > s.ColumnCount() {
+		return nil, errors.New("invalid column number")
+	}
+
+	return s.getColumn(i)
+}
+
+func (s *Statement) Row() ([]any, error) {
+	row := make([]any, s.ColumnCount())
+
+	for i := range s.ColumnCount() {
+		value, err := s.getColumn(i)
+		if err != nil {
+			return nil, err
+		}
+
+		row[i] = value
+	}
+
+	return row, nil
 }
