@@ -210,15 +210,18 @@ func (s *Statement) Finalize() error {
 
 func (s *Statement) Step() (bool, error) {
 	rv := C.sqlite3_step(s.statement)
-	if rv == C.SQLITE_ROW {
+	switch rv {
+	case C.SQLITE_ROW:
 		return false, nil
-	} else if rv == C.SQLITE_DONE {
-		return true, nil
-	}
 
-	return true, &Error{
-		Code:    int(rv),
-		Message: C.GoString(C.sqlite3_errstr(rv)),
+	case C.SQLITE_DONE:
+		return true, nil
+
+	default:
+		return true, &Error{
+			Code:    int(rv),
+			Message: C.GoString(C.sqlite3_errstr(rv)),
+		}
 	}
 }
 
