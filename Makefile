@@ -4,7 +4,7 @@ SRCS := sqlite.go \
 	sqlite3.h \
 	sqlite3ext.h
 
-.PHONY: all build check coverage
+.PHONY: all build check clean coverage
 
 all: build
 
@@ -21,3 +21,7 @@ coverage.cov: $(SRCS) $(TESTS)
 
 coverage.html: coverage.cov
 	go tool cover -html=$^ -o $@
+
+clean:
+	- rm -f coverage.html
+	- rm -f coverage.cov
