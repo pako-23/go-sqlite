@@ -85,3 +85,110 @@ func TestOpenFailure(t *testing.T) {
 	require.Error(t, err)
 	require.EqualError(t, err, "sqlite3 error CANTOPEN(14): unable to open database file")
 }
+
+func TestSimpleQuery(t *testing.T) {
+	t.Parallel()
+
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	query := "SELECT 100 AS id, 'name' AS name, 3.14 AS pi, x'0102' AS data, NULL AS empty"
+	statement, err := conn.Prepare(query)
+	require.NoError(t, err)
+	require.NotNil(t, statement)
+
+	require.Equal(t, 5, statement.ColumnCount())
+
+	done, err := statement.Step()
+	require.NoError(t, err)
+	require.False(t, done)
+
+	value, err := statement.Column(0)
+	require.NoError(t, err)
+	require.Equal(t, int64(100), value)
+
+	value, err = statement.Column(1)
+	require.NoError(t, err)
+	require.Equal(t, "name", value)
+
+	value, err = statement.Column(2)
+	require.NoError(t, err)
+	require.InDelta(t, 3.14, value, 0.0001)
+
+	value, err = statement.Column(3)
+	require.NoError(t, err)
+	require.Equal(t, []byte{0x01, 0x02}, value)
+
+	value, err = statement.Column(4)
+	require.NoError(t, err)
+	require.Nil(t, value)
+
+	done, err = statement.Step()
+	require.NoError(t, err)
+	require.True(t, done)
+
+	require.NoError(t, statement.Finalize())
+}
+
+func TestSimpleQueryRow(t *testing.T) {
+	t.Parallel()
+
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	query := "SELECT 100 AS id, 'name' AS name, 3.14 AS pi, x'0102' AS data, NULL AS empty"
+	statement, err := conn.Prepare(query)
+	require.NoError(t, err)
+	require.NotNil(t, statement)
+
+	require.Equal(t, 5, statement.ColumnCount())
+
+	done, err := statement.Step()
+	require.NoError(t, err)
+	require.False(t, done)
+
+	row, err := statement.Row()
+	require.NoError(t, err)
+
+	require.Len(t, row, 5)
+
+	require.Equal(t, int64(100), row[0])
+	require.Equal(t, "name", row[1])
+	require.InDelta(t, 3.14, row[2], 0.0001)
+	require.Equal(t, []byte{0x01, 0x02}, row[3])
+	require.Nil(t, row[4])
+
+	done, err = statement.Step()
+	require.NoError(t, err)
+	require.True(t, done)
+
+	require.NoError(t, statement.Finalize())
+}
+
+func TestStatementErrors(t *testing.T) {
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+	defer conn.Close()
+
+	t.Run("not existing table", func(t *testing.T) {
+		statement, err := conn.Prepare("SELECT * FROM non_existent_table")
+		require.Error(t, err)
+		require.Nil(t, statement)
+		require.EqualError(t, err, "sqlite3 error ERROR(1): SQL logic error")
+	})
+
+	t.Run("column out of bounds", func(t *testing.T) {
+		statement, err := conn.Prepare("SELECT 1")
+		require.NoError(t, err)
+		defer statement.Finalize()
+
+		_, err = statement.Step()
+		require.NoError(t, err)
+
+		_, err = statement.Column(1)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid column number")
+	})
+}

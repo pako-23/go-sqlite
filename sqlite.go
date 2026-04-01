@@ -211,62 +211,54 @@ func (s *Statement) Finalize() error {
 func (s *Statement) Step() (bool, error) {
 	rv := C.sqlite3_step(s.statement)
 	if rv == C.SQLITE_ROW {
-		return true, nil
-	} else if rv == C.SQLITE_DONE {
 		return false, nil
+	} else if rv == C.SQLITE_DONE {
+		return true, nil
 	}
 
-	return false, &Error{
+	return true, &Error{
 		Code:    int(rv),
 		Message: C.GoString(C.sqlite3_errstr(rv)),
 	}
 }
 
-func (s *Statement) getColumn(i int) (any, error) {
-
+func (s *Statement) getColumn(i int) any {
 	columnType := int(C.sqlite3_column_type(s.statement, C.int(i)))
 	switch columnType {
 	case DataTypeInteger:
-		return int64(C.sqlite3_column_int64(s.statement, C.int(i))), nil
+		return int64(C.sqlite3_column_int64(s.statement, C.int(i)))
 
 	case DataTypeFloat:
-		return float64(C.sqlite3_column_double(s.statement, C.int(i))), nil
+		return float64(C.sqlite3_column_double(s.statement, C.int(i)))
 
 	case DataTypeBlob:
 		ptr := C.sqlite3_column_blob(s.statement, C.int(i))
 		size := C.sqlite3_column_bytes(s.statement, C.int(i))
-		return C.GoBytes(ptr, size), nil
-
-	case DataTypeNull:
-		return nil, nil
+		return C.GoBytes(ptr, size)
 
 	case DataTypeText:
 		ptr := C.sqlite3_column_text(s.statement, C.int(i))
-		return C.GoString((*C.char)(unsafe.Pointer(ptr))), nil
+		return C.GoString((*C.char)(unsafe.Pointer(ptr)))
 
 	default:
-		return nil, fmt.Errorf("unexpected column type: %d", columnType)
+		return nil
+
 	}
 }
 
 func (s *Statement) Column(i int) (any, error) {
-	if i < 0 || i > s.ColumnCount() {
+	if i < 0 || i >= s.ColumnCount() {
 		return nil, errors.New("invalid column number")
 	}
 
-	return s.getColumn(i)
+	return s.getColumn(i), nil
 }
 
 func (s *Statement) Row() ([]any, error) {
 	row := make([]any, s.ColumnCount())
 
 	for i := range s.ColumnCount() {
-		value, err := s.getColumn(i)
-		if err != nil {
-			return nil, err
-		}
-
-		row[i] = value
+		row[i] = s.getColumn(i)
 	}
 
 	return row, nil
