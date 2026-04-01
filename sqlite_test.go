@@ -52,3 +52,36 @@ func TestResultCodeString(t *testing.T) {
 		require.Equal(t, test.expected, test.code.String())
 	}
 }
+
+func TestError(t *testing.T) {
+	t.Parallel()
+
+	err := &sqlite.Error{
+		Code:    sqlite.CANTOPEN,
+		Message: "unable to open database file",
+	}
+
+	require.Equal(t, "sqlite3 error CANTOPEN(14): unable to open database file", err.Error())
+
+}
+
+func TestOpenCloseSuccess(t *testing.T) {
+	t.Parallel()
+
+	conn, err := sqlite.Open(":memory:")
+
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+
+	err = conn.Close()
+	require.NoError(t, err)
+}
+
+func TestOpenFailure(t *testing.T) {
+	t.Parallel()
+
+	_, err := sqlite.Open("file:/this/path/does/not/exist/db.sqlite")
+
+	require.Error(t, err)
+	require.EqualError(t, err, "sqlite3 error CANTOPEN(14): unable to open database file")
+}

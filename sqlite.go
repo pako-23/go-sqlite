@@ -95,7 +95,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("sqlite3 error (%d): %s", e.Code, e.Message)
+	return fmt.Sprintf("sqlite3 error %s(%d): %s", e.Code.String(), e.Code, e.Message)
 }
 
 type Conn struct {
