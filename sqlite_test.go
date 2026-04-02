@@ -176,7 +176,7 @@ func TestStatementErrors(t *testing.T) {
 		statement, err := conn.Prepare("SELECT * FROM non_existent_table")
 		require.Error(t, err)
 		require.Nil(t, statement)
-		require.EqualError(t, err, "sqlite3 error ERROR(1): SQL logic error")
+		require.EqualError(t, err, "sqlite3 error ERROR(1): no such table: non_existent_table")
 	})
 
 	t.Run("column out of bounds", func(t *testing.T) {

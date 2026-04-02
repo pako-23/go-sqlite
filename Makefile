@@ -1,5 +1,7 @@
-TESTS := sqlite_test.go
-SRCS := sqlite.go \
+TESTS := sqlite_test.go sqlite_vtable_test.go
+SRCS := gosqlite_vtable.c \
+	gosqlite_vtable.h \
+	sqlite.go \
 	sqlite_vtable.go \
 	sqlite3.c \
 	sqlite3.h \

@@ -137,6 +137,7 @@ type Conn struct {
 
 type Statement struct {
 	columnCount int
+	conn        *Conn
 	statement   *C.sqlite3_stmt
 }
 
@@ -163,10 +164,7 @@ func Open(filename string) (*Conn, error) {
 func (c *Conn) Close() error {
 	rv := C.sqlite3_close(c.conn)
 	if rv != C.SQLITE_OK {
-		return &Error{
-			Code:    int(rv),
-			Message: C.GoString(C.sqlite3_errmsg(c.conn)),
-		}
+		return c.error(int(rv))
 	}
 
 	return nil
@@ -180,16 +178,21 @@ func (c *Conn) Prepare(query string) (*Statement, error) {
 
 	rv := C.sqlite3_prepare_v2(c.conn, queryPtr, C.int(len(query)+1), &statement, nil)
 	if rv != C.SQLITE_OK {
-		return nil, &Error{
-			Code:    int(rv),
-			Message: C.GoString(C.sqlite3_errstr(rv)),
-		}
+		return nil, c.error(int(rv))
 	}
 
 	return &Statement{
+		conn:        c,
 		columnCount: int(C.sqlite3_column_count(statement)),
 		statement:   statement,
 	}, nil
+}
+
+func (c *Conn) error(code int) error {
+	return &Error{
+		Code:    code,
+		Message: C.GoString(C.sqlite3_errmsg(c.conn)),
+	}
 }
 
 func (s *Statement) ColumnCount() int {
@@ -199,10 +202,7 @@ func (s *Statement) ColumnCount() int {
 func (s *Statement) Finalize() error {
 	rv := C.sqlite3_finalize(s.statement)
 	if rv != C.SQLITE_OK {
-		return &Error{
-			Code:    int(rv),
-			Message: C.GoString(C.sqlite3_errstr(rv)),
-		}
+		return s.conn.error(int(rv))
 	}
 
 	return nil
@@ -218,10 +218,7 @@ func (s *Statement) Step() (bool, error) {
 		return true, nil
 
 	default:
-		return true, &Error{
-			Code:    int(rv),
-			Message: C.GoString(C.sqlite3_errstr(rv)),
-		}
+		return true, s.conn.error(int(rv))
 	}
 }
 
