@@ -18,7 +18,13 @@ func (m *MockModule) Declaration() string {
 	return args.Get(0).(string)
 }
 
-func (m *MockModule) Connect() (sqlite.VirtualTable, error) {
+func (m *MockModule) Connect() (sqlite.EponymousVirtualTable, error) {
+	args := m.Called()
+
+	return args.Get(0).(sqlite.EponymousVirtualTable), args.Error(1)
+}
+
+func (m *MockModule) Create() (sqlite.VirtualTable, error) {
 	args := m.Called()
 
 	return args.Get(0).(sqlite.VirtualTable), args.Error(1)
@@ -32,10 +38,15 @@ func (m *MockVirtualTable) BestIndex(constraints []sqlite.IndexConstraint, order
 	args := m.Called(constraints, order)
 
 	return args.Error(0)
-
 }
 
 func (m *MockVirtualTable) Disconnect() error {
+	args := m.Called()
+
+	return args.Error(0)
+}
+
+func (m *MockVirtualTable) Destroy() error {
 	args := m.Called()
 
 	return args.Error(0)
