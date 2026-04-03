@@ -3,6 +3,7 @@ package sqlite
 /*
 #include "gosqlite_vtable.h"
 #include <stdlib.h>
+#include <string.h>
 */
 import "C"
 import (
@@ -51,8 +52,27 @@ type Module interface {
 	Create() (VirtualTable, error)
 }
 
+func gosqliteError(err error, errmsg **C.char) C.int {
+	var (
+		code    C.int = C.SQLITE_ERROR
+		message string
+	)
+
+	serr, ok := err.(*Error)
+	if ok {
+		code = C.int(serr.Code)
+		message = serr.Message
+	} else {
+		message = err.Error()
+	}
+
+	*errmsg = C.CString(message)
+
+	return code
+}
+
 //export gosqliteConnectImpl
-func gosqliteConnectImpl(conn *C.sqlite3, handle unsafe.Pointer, errorMessage **C.char) C.uintptr_t {
+func gosqliteConnectImpl(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
 	module := cgo.Handle(handle).Value().(EponymousModule)
 
 	declaration := C.CString(module.Declaration())
@@ -60,21 +80,21 @@ func gosqliteConnectImpl(conn *C.sqlite3, handle unsafe.Pointer, errorMessage **
 
 	rv := C.sqlite3_declare_vtab(conn, declaration)
 	if rv != C.SQLITE_OK {
-		// TODO implement real error handling
-		return 0
+		*errmsg = C.strdup(C.sqlite3_errmsg(conn))
+		return rv
 	}
 
 	vtable, err := module.Connect()
 	if err != nil {
-		// TODO copy error message into errorMessage
-		return 0
+		return gosqliteError(err, errmsg)
 	}
 
-	return C.uintptr_t(cgo.NewHandle(vtable))
+	*out = C.uintptr_t(cgo.NewHandle(vtable))
+	return C.SQLITE_OK
 }
 
 //export gosqliteCreateImpl
-func gosqliteCreateImpl(conn *C.sqlite3, handle unsafe.Pointer, errorMessage **C.char) C.uintptr_t {
+func gosqliteCreateImpl(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
 	module := cgo.Handle(handle).Value().(Module)
 
 	declaration := C.CString(module.Declaration())
@@ -82,17 +102,55 @@ func gosqliteCreateImpl(conn *C.sqlite3, handle unsafe.Pointer, errorMessage **C
 
 	rv := C.sqlite3_declare_vtab(conn, declaration)
 	if rv != C.SQLITE_OK {
-		// TODO implement real error handling
-		return 0
+		*errmsg = C.strdup(C.sqlite3_errmsg(conn))
+		return rv
 	}
 
 	vtable, err := module.Create()
 	if err != nil {
-		// TODO copy error message into errorMessage
-		return 0
+		return gosqliteError(err, errmsg)
 	}
 
-	return C.uintptr_t(cgo.NewHandle(vtable))
+	*out = C.uintptr_t(cgo.NewHandle(vtable))
+	return C.SQLITE_OK
+}
+
+//export gosqliteBestIndexImpl
+func gosqliteBestIndexImpl() {
+}
+
+//export gosqliteDisconnect
+func gosqliteDisconnect(handle unsafe.Pointer, errmsg **C.char) C.int {
+	h := cgo.Handle(handle)
+	vtable := h.Value().(EponymousVirtualTable)
+
+	err := vtable.Disconnect()
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
+	h.Delete()
+
+	return C.SQLITE_OK
+}
+
+//export gosqliteDestroy
+func gosqliteDestroy(handle unsafe.Pointer, errmsg **C.char) C.int {
+	h := cgo.Handle(handle)
+	vtable := h.Value().(VirtualTable)
+
+	err := vtable.Destroy()
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
+	h.Delete()
+
+	return C.SQLITE_OK
+}
+
+//export gosqliteOpen
+func gosqliteOpen() {
 }
 
 func (c *Conn) CreateModule(name string, module EponymousModule) error {
@@ -114,6 +172,8 @@ func (c *Conn) CreateModule(name string, module EponymousModule) error {
 		handle.Delete()
 		return c.error(int(rv))
 	}
+
+	c.modules = append(c.modules, handle)
 
 	return nil
 }

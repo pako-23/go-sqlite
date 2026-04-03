@@ -58,31 +58,72 @@ func (m *MockVirtualTable) Open() (sqlite.VirtualTableCursor, error) {
 	return args.Get(0).(sqlite.VirtualTableCursor), args.Error(1)
 }
 
-func TestModuleCreation(t *testing.T) {
+func queryExec(conn *sqlite.Conn, query string) error {
+	statement, err := conn.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	for {
+		done, err := statement.Step()
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+	}
+
+	return statement.Finalize()
+}
+
+func TestModuleCreate(t *testing.T) {
 	t.Parallel()
 
-	virtualTable := new(MockVirtualTable)
+	vtable := new(MockVirtualTable)
 	module := new(MockModule)
 	conn, err := sqlite.Open(":memory:")
 	require.NoError(t, err)
 
 	module.On("Declaration").Return("CREATE TABLE mock(id INTEGER)").Once()
-	module.On("Connect").Return(virtualTable, nil).Once()
+	module.On("Connect").Return(vtable, nil).Once()
+	vtable.On("Disconnect").Return(nil).Once()
 
 	err = conn.CreateModule("mock", module)
 	require.NoError(t, err)
 
-	statement, err := conn.Prepare("CREATE VIRTUAL TABLE mock USING mock")
+	err = queryExec(conn, "CREATE VIRTUAL TABLE mock USING mock")
 	require.NoError(t, err)
 
-	for {
-		done, err := statement.Step()
-		require.NoError(t, err)
-		if done {
-			break
-		}
-	}
-	require.NoError(t, statement.Finalize())
-
+	require.NoError(t, conn.Close())
 	module.AssertExpectations(t)
+	vtable.AssertExpectations(t)
+}
+
+func TestModuleDestroy(t *testing.T) {
+	t.Parallel()
+
+	times := 3
+	vtable := new(MockVirtualTable)
+	module := new(MockModule)
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+
+	module.On("Declaration").Return("CREATE TABLE mock(id INTEGER)").Times(times)
+	module.On("Connect").Return(vtable, nil).Times(times)
+	vtable.On("Destroy").Return(nil).Times(times)
+	err = conn.CreateModule("mock", module)
+	require.NoError(t, err)
+
+	for range times {
+		err = queryExec(conn, "CREATE VIRTUAL TABLE mock USING mock")
+		require.NoError(t, err)
+
+		err = queryExec(conn, "DROP TABLE mock")
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, conn.Close())
+	module.AssertExpectations(t)
+	vtable.AssertExpectations(t)
 }

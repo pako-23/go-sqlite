@@ -8,6 +8,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"runtime/cgo"
 	"unsafe"
 )
 
@@ -132,7 +133,8 @@ func (e *Error) Error() string {
 }
 
 type Conn struct {
-	conn *C.sqlite3
+	conn    *C.sqlite3
+	modules []cgo.Handle
 }
 
 type Statement struct {
@@ -158,13 +160,20 @@ func Open(filename string) (*Conn, error) {
 		return nil, err
 	}
 
-	return &Conn{conn: conn}, nil
+	return &Conn{
+		conn:    conn,
+		modules: []cgo.Handle{},
+	}, nil
 }
 
 func (c *Conn) Close() error {
 	rv := C.sqlite3_close(c.conn)
 	if rv != C.SQLITE_OK {
 		return c.error(int(rv))
+	}
+
+	for _, handle := range c.modules {
+		handle.Delete()
 	}
 
 	return nil
