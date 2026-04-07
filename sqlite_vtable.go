@@ -71,8 +71,8 @@ func gosqliteError(err error, errmsg **C.char) C.int {
 	return code
 }
 
-//export gosqliteConnectImpl
-func gosqliteConnectImpl(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
+//export gosqliteConnect
+func gosqliteConnect(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
 	module := cgo.Handle(handle).Value().(EponymousModule)
 
 	declaration := C.CString(module.Declaration())
@@ -93,8 +93,8 @@ func gosqliteConnectImpl(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_
 	return C.SQLITE_OK
 }
 
-//export gosqliteCreateImpl
-func gosqliteCreateImpl(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
+//export gosqliteCreate
+func gosqliteCreate(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
 	module := cgo.Handle(handle).Value().(Module)
 
 	declaration := C.CString(module.Declaration())
@@ -113,10 +113,6 @@ func gosqliteCreateImpl(conn *C.sqlite3, handle unsafe.Pointer, out *C.uintptr_t
 
 	*out = C.uintptr_t(cgo.NewHandle(vtable))
 	return C.SQLITE_OK
-}
-
-//export gosqliteBestIndexImpl
-func gosqliteBestIndexImpl() {
 }
 
 //export gosqliteDisconnect
@@ -149,8 +145,52 @@ func gosqliteDestroy(handle unsafe.Pointer, errmsg **C.char) C.int {
 	return C.SQLITE_OK
 }
 
+//export gosqliteBestIndexImpl
+func gosqliteBestIndexImpl() {
+}
+
 //export gosqliteOpen
-func gosqliteOpen() {
+func gosqliteOpen(handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.int {
+	vtable := cgo.Handle(handle).Value().(EponymousVirtualTable)
+
+	cursor, err := vtable.Open()
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
+	*out = C.uintptr_t(cgo.NewHandle(cursor))
+
+	return C.SQLITE_OK
+}
+
+//export gosqliteClose
+func gosqliteClose(handle unsafe.Pointer, errmsg **C.char) C.int {
+	return C.SQLITE_OK
+}
+
+//export gosqliteFilter
+func gosqliteFilter(indexId int, indexName string, values []any) C.int {
+	return C.SQLITE_OK
+}
+
+//export gosqliteNext
+func gosqliteNext() C.int {
+	return C.SQLITE_OK
+}
+
+//export gosqliteEOF
+func gosqliteEOF() C.int {
+	return C.SQLITE_OK
+}
+
+//export gosqliteColumn
+func gosqliteColumn(column int) C.int {
+	return C.SQLITE_OK
+}
+
+//export gosqliteRowid
+func gosqliteRowid() C.int {
+	return C.SQLITE_OK
 }
 
 func (c *Conn) CreateModule(name string, module EponymousModule) error {
