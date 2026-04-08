@@ -271,7 +271,33 @@ func gosqliteClose(handle unsafe.Pointer, errmsg **C.char) C.int {
 }
 
 //export gosqliteFilter
-func gosqliteFilter(indexId int, indexName string, values []any) C.int {
+func gosqliteFilter(handle unsafe.Pointer, indexId C.int, indexName *C.char, argc C.int, argv **C.sqlite3_value, errmsg **C.char) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+
+	argvSlice := unsafe.Slice(argv, int(argc))
+	values := make([]any, argc)
+	for i, value := range argvSlice {
+		switch C.sqlite3_value_type(value) {
+		case C.SQLITE_INTEGER:
+			values[i] = int64(C.sqlite3_value_int64(value))
+		case C.SQLITE_FLOAT:
+			values[i] = float64(C.sqlite3_value_double(value))
+		case C.SQLITE_TEXT:
+			values[i] = C.GoStringN(
+				(*C.char)(unsafe.Pointer(C.sqlite3_value_text(value))),
+				C.sqlite3_value_bytes(value))
+		case C.SQLITE_BLOB:
+			values[i] = C.GoBytes(C.sqlite3_value_blob(value), C.sqlite3_value_bytes(value))
+		default:
+			values[i] = nil
+		}
+	}
+
+	err := cursor.Filter(int(indexId), C.GoString(indexName), values)
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
 	return C.SQLITE_OK
 }
 

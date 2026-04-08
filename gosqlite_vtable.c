@@ -18,9 +18,9 @@ extern int gosqliteCreate(sqlite3 *conn, void *handle, uintptr_t *out, char **er
 extern int gosqliteDisconnect(uintptr_t handle, char **errout);
 extern int gosqliteDestroy(uintptr_t handle, char **errout);
 extern int gosqliteBestIndex(uintptr_t handle, void *out, char **errout);
-
 extern int gosqliteOpen(void *handle, uintptr_t *out, char **errout);
 extern int gosqliteClose(uintptr_t handle, char **errout);
+extern int gosqliteFilter(uintptr_t handle, int indexId, const char *indexName, int argc, sqlite3_value **argv, char **errout);
 
 static void gosqlite_reset_error(struct sqlite3_vtab *vtable)
 {
@@ -139,7 +139,11 @@ static int gosqlite_filter(sqlite3_vtab_cursor *cursor, int indexId,
 			   const char *indexName, int argc,
 			   sqlite3_value **argv)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
+
+    gosqlite_reset_error(cursor->pVtab);
+    return gosqliteFilter(gocursor->handle, indexId, indexName, argc, argv,
+                            &gocursor->base.pVtab->zErrMsg);
 }
 
 static int gosqlite_next(sqlite3_vtab_cursor *cursor)

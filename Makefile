@@ -15,7 +15,7 @@ build: $(SRCS)
 	go build
 
 check: $(SRCS) $(TESTS)
-	go test -covermode=atomic -race
+	go test -race
 
 coverage: coverage.html
 
