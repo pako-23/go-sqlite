@@ -71,8 +71,8 @@ func (m *MockVirtualTable) Insert(id any, values []any) (int64, error) {
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockVirtualTable) Update(id any, values []any, newId ...any) error {
-	args := m.Called(id, values, newId)
+func (m *MockVirtualTable) Update(id any, values []any) error {
+	args := m.Called(id, values)
 
 	return args.Error(0)
 }
@@ -107,6 +107,8 @@ func queryExec(conn *sqlite.Conn, query string) error {
 		return err
 	}
 
+	defer statement.Finalize()
+
 	for {
 		done, err := statement.Step()
 		if err != nil {
@@ -117,7 +119,7 @@ func queryExec(conn *sqlite.Conn, query string) error {
 		}
 	}
 
-	return statement.Finalize()
+	return nil
 }
 
 func TestModuleCreate(t *testing.T) {
@@ -266,7 +268,7 @@ func TestVirtualTableUpdates(t *testing.T) {
 	conn, err := sqlite.Open(":memory:")
 	require.NoError(t, err)
 
-	module.On("Declaration").Return("CREATE TABLE test(a INTEGER PRIMARY KEY)")
+	module.On("Declaration").Return("CREATE TABLE test(a TEXT PRIMARY KEY, b INTEGER)")
 	module.On("Connect").Return(vtable, nil).Once()
 	vtable.On("Disconnect").Return(nil).Once()
 
@@ -275,10 +277,10 @@ func TestVirtualTableUpdates(t *testing.T) {
 
 	t.Run("insertion", func(t *testing.T) {
 		for i := 1; i < 4; i++ {
-			vtable.On("Insert", nil, []any{int64(i)}).Return(int64(i), nil).Once()
+			vtable.On("Insert", nil, []any{fmt.Sprintf("%d", i), nil}).Return(int64(i), nil).Once()
 		}
 
-		err = queryExec(conn, "INSERT INTO t1(a) VALUES (1), (2), (3)")
+		err = queryExec(conn, "INSERT INTO t1(a) VALUES ('1'), ('2'), ('3')")
 		require.NoError(t, err)
 	})
 
@@ -315,7 +317,7 @@ func TestVirtualTableUpdates(t *testing.T) {
 				IndexName:   "a-column",
 				Usage:       []bool{true},
 			}, nil).Once()
-		cursor.On("Filter", 0, "a-column", []any{int64(1)}).Return(nil).Once()
+		cursor.On("Filter", 0, "a-column", []any{"1"}).Return(nil).Once()
 		cursor.On("EOF").Return(false).Once()
 		cursor.On("EOF").Return(true).Once()
 		cursor.On("Close").Return(nil).Once()
@@ -324,7 +326,7 @@ func TestVirtualTableUpdates(t *testing.T) {
 		vtable.On("Open").Return(cursor, nil).Once()
 		vtable.On("Delete", int64(0)).Return(nil).Once()
 
-		err = queryExec(conn, "DELETE FROM t1 WHERE a = 1")
+		err = queryExec(conn, "DELETE FROM t1 WHERE a = '1'")
 		require.NoError(t, err)
 	})
 
@@ -335,12 +337,27 @@ func TestVirtualTableUpdates(t *testing.T) {
 				IndexName:   "a-column",
 				Usage:       []bool{true},
 			}, nil).Once()
-		cursor.On("Filter", 0, "a-column", []any{int64(1)}).Return(nil).Once()
+		cursor.On("Filter", 0, "a-column", []any{"1"}).Return(nil).Once()
 		cursor.On("EOF").Return(true).Once()
 		cursor.On("Close").Return(nil).Once()
 		vtable.On("Open").Return(cursor, nil).Once()
 
-		err = queryExec(conn, "DELETE FROM t1 WHERE a = 1")
+		err = queryExec(conn, "DELETE FROM t1 WHERE a = '1'")
+		require.NoError(t, err)
+	})
+
+	t.Run("update non primary key", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).Return(sqlite.IndexResult{}, nil).Once()
+		cursor.On("Filter", 0, "", mock.Anything).Return(nil).Once()
+		cursor.On("EOF").Return(false).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Column", 0).Return("1", nil).Once()
+		cursor.On("Close").Return(nil).Once()
+		cursor.On("Next").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+		vtable.On("Update", int64(0), []any{"1", int64(1)}).Return(nil).Once()
+
+		err = queryExec(conn, "UPDATE t1 SET b = 1")
 		require.NoError(t, err)
 	})
 
@@ -359,7 +376,7 @@ func TestVirtualTableUpdatesNoRowid(t *testing.T) {
 	conn, err := sqlite.Open(":memory:")
 	require.NoError(t, err)
 
-	module.On("Declaration").Return("CREATE TABLE test(a TEXT PRIMARY KEY) WITHOUT ROWID")
+	module.On("Declaration").Return("CREATE TABLE test(a TEXT PRIMARY KEY, b INTEGER) WITHOUT ROWID")
 	module.On("Connect").Return(vtable, nil).Once()
 	vtable.On("Disconnect").Return(nil).Once()
 
@@ -368,7 +385,7 @@ func TestVirtualTableUpdatesNoRowid(t *testing.T) {
 
 	t.Run("insertion", func(t *testing.T) {
 		for i := 1; i < 4; i++ {
-			vtable.On("Insert", nil, []any{fmt.Sprintf("%d", i)}).Return(int64(0), nil).Once()
+			vtable.On("Insert", nil, []any{fmt.Sprintf("%d", i), nil}).Return(int64(0), nil).Once()
 		}
 
 		err = queryExec(conn, "INSERT INTO t1(a) VALUES ('1'), ('2'), ('3')")
@@ -408,6 +425,21 @@ func TestVirtualTableUpdatesNoRowid(t *testing.T) {
 		vtable.On("Open").Return(cursor, nil).Once()
 
 		err = queryExec(conn, "DELETE FROM t1 WHERE a = '1'")
+		require.NoError(t, err)
+	})
+
+	t.Run("update non primary key", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).Return(sqlite.IndexResult{}, nil).Once()
+		cursor.On("Filter", 0, "", mock.Anything).Return(nil).Once()
+		cursor.On("EOF").Return(false).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Column", 0).Return("1", nil).Twice()
+		cursor.On("Close").Return(nil).Once()
+		cursor.On("Next").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+		vtable.On("Update", "1", []any{"1", int64(1)}).Return(nil).Once()
+
+		err = queryExec(conn, "UPDATE t1 SET b = 1")
 		require.NoError(t, err)
 	})
 

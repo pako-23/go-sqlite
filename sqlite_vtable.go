@@ -451,13 +451,7 @@ func gosqliteUpdate(handle unsafe.Pointer, argc C.int, argv **C.sqlite3_value, r
 			return gosqliteError(ErrUpdateNotSupported, errmsg)
 		}
 
-		var err error = nil
-		if values[0] == values[1] {
-			err = vtable.Update(values[0], values[2:])
-		} else {
-			err = vtable.Update(values[0], values[2:], values[1])
-		}
-
+		err := vtable.Update(values[0], values[2:])
 		if err != nil {
 			return gosqliteError(err, errmsg)
 		}
