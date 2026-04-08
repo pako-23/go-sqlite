@@ -26,6 +26,7 @@ extern int gosqliteFilter(uintptr_t handle, int indexId, const char *indexName,
 extern int gosqliteNext(uintptr_t handle, char **errout);
 extern int gosqliteEOF(uintptr_t handle);
 extern int gosqliteColumn(uintptr_t handle, sqlite3_context *ctx, int column);
+extern int gosqliteRowid(uintptr_t handle, sqlite3_int64 *rowid, char **errout);
 
 static void gosqlite_reset_error(struct sqlite3_vtab *vtable)
 {
@@ -176,7 +177,10 @@ static int gosqlite_column(sqlite3_vtab_cursor *cursor, sqlite3_context *ctx,
 
 static int gosqlite_rowid(sqlite3_vtab_cursor *cursor, sqlite_int64 *rowid)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
+
+    gosqlite_reset_error(cursor->pVtab);
+    return gosqliteRowid(gocursor->handle, rowid, &cursor->pVtab->zErrMsg);
 }
 
 static const sqlite3_module gomodule = {

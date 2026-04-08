@@ -371,7 +371,16 @@ func gosqliteColumn(handle unsafe.Pointer, ctx *C.sqlite3_context, column C.int)
 }
 
 //export gosqliteRowid
-func gosqliteRowid() C.int {
+func gosqliteRowid(handle unsafe.Pointer, rowid *C.sqlite3_int64, errmsg **C.char) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+
+	id, err := cursor.Rowid()
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
+	*rowid = C.sqlite3_int64(id)
+
 	return C.SQLITE_OK
 }
 
