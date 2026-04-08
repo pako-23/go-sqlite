@@ -20,7 +20,10 @@ extern int gosqliteDestroy(uintptr_t handle, char **errout);
 extern int gosqliteBestIndex(uintptr_t handle, void *out, char **errout);
 extern int gosqliteOpen(void *handle, uintptr_t *out, char **errout);
 extern int gosqliteClose(uintptr_t handle, char **errout);
-extern int gosqliteFilter(uintptr_t handle, int indexId, const char *indexName, int argc, sqlite3_value **argv, char **errout);
+extern int gosqliteFilter(uintptr_t handle, int indexId, const char *indexName,
+                          int argc, sqlite3_value **argv, char **errout);
+extern int gosqliteNext(uintptr_t handle, char **errout);
+extern int gosqliteEOF(uintptr_t handle);
 
 static void gosqlite_reset_error(struct sqlite3_vtab *vtable)
 {
@@ -128,7 +131,7 @@ static int gosqlite_close(sqlite3_vtab_cursor *cursor)
     struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
 
     gosqlite_reset_error(cursor->pVtab);
-    int rv = gosqliteClose(gocursor->handle, &gocursor->base.pVtab->zErrMsg);
+    int rv = gosqliteClose(gocursor->handle, &cursor->pVtab->zErrMsg);
     if (rv != SQLITE_OK) return rv;
     sqlite3_free(cursor);
 
@@ -143,17 +146,21 @@ static int gosqlite_filter(sqlite3_vtab_cursor *cursor, int indexId,
 
     gosqlite_reset_error(cursor->pVtab);
     return gosqliteFilter(gocursor->handle, indexId, indexName, argc, argv,
-                            &gocursor->base.pVtab->zErrMsg);
+                            &cursor->pVtab->zErrMsg);
 }
 
 static int gosqlite_next(sqlite3_vtab_cursor *cursor)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
+
+    gosqlite_reset_error(cursor->pVtab);
+    return gosqliteNext(gocursor->handle, &cursor->pVtab->zErrMsg);
 }
 
 static int gosqlite_eof(sqlite3_vtab_cursor *cursor)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
+    return gosqliteEOF(gocursor->handle);
 }
 
 static int gosqlite_column(sqlite3_vtab_cursor *cursor, sqlite3_context *ctx,

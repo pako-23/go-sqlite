@@ -302,13 +302,26 @@ func gosqliteFilter(handle unsafe.Pointer, indexId C.int, indexName *C.char, arg
 }
 
 //export gosqliteNext
-func gosqliteNext() C.int {
+func gosqliteNext(handle unsafe.Pointer, errmsg **C.char) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+
+	err := cursor.Next()
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
 	return C.SQLITE_OK
 }
 
 //export gosqliteEOF
-func gosqliteEOF() C.int {
-	return C.SQLITE_OK
+func gosqliteEOF(handle unsafe.Pointer) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+
+	if cursor.EOF() {
+		return C.int(1)
+	}
+
+	return C.int(0)
 }
 
 //export gosqliteColumn
