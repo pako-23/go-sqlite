@@ -16,6 +16,7 @@ extern int gosqliteConnect(sqlite3 *conn, void *handle, uintptr_t *out, char **e
 extern int gosqliteCreate(sqlite3 *conn, void *handle, uintptr_t *out, char **errout);
 extern int gosqliteDisconnect(uintptr_t handle, char **errout);
 extern int gosqliteDestroy(uintptr_t handle, char **errout);
+extern int gosqliteBestIndex(uintptr_t handle, void *out, char **errout);
 
 extern int gosqliteOpen(void *handle, uintptr_t *out, char **errout);
 extern int gosqliteClose(void *handle, char **errout);
@@ -60,7 +61,9 @@ static int gosqlite_create(sqlite3 *db, void *aux, int argc,
 
 static int gosqlite_best_index(sqlite3_vtab *vtable, sqlite3_index_info *info)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab *govtable = (struct gosqlite_vtab *)vtable;
+
+    return gosqliteBestIndex(govtable->handle, info, &vtable->zErrMsg);
 }
 
 static int gosqlite_disconnect(sqlite3_vtab *vtable)

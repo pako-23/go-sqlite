@@ -20,6 +20,32 @@ type VirtualTableCursor interface {
 	Rowid() (int64, error)
 }
 
+const (
+	IndexConstraintEq        = C.SQLITE_INDEX_CONSTRAINT_EQ
+	IndexConstraintGt        = C.SQLITE_INDEX_CONSTRAINT_GT
+	IndexConstraintLe        = C.SQLITE_INDEX_CONSTRAINT_LE
+	IndexConstraintLt        = C.SQLITE_INDEX_CONSTRAINT_LT
+	IndexConstraintGe        = C.SQLITE_INDEX_CONSTRAINT_GE
+	IndexConstraintMatch     = C.SQLITE_INDEX_CONSTRAINT_MATCH
+	IndexConstraintLike      = C.SQLITE_INDEX_CONSTRAINT_LIKE
+	IndexConstraintGlob      = C.SQLITE_INDEX_CONSTRAINT_GLOB
+	IndexConstraintRegExp    = C.SQLITE_INDEX_CONSTRAINT_REGEXP
+	IndexConstraintNe        = C.SQLITE_INDEX_CONSTRAINT_NE
+	IndexConstraintIsNot     = C.SQLITE_INDEX_CONSTRAINT_ISNOT
+	IndexConstraintIsNotNull = C.SQLITE_INDEX_CONSTRAINT_ISNOTNULL
+	IndexConstraintIsNull    = C.SQLITE_INDEX_CONSTRAINT_ISNULL
+	IndexConstraintIs        = C.SQLITE_INDEX_CONSTRAINT_IS
+	IndexConstraintLimit     = C.SQLITE_INDEX_CONSTRAINT_LIMIT
+	IndexConstraintOffset    = C.SQLITE_INDEX_CONSTRAINT_OFFSET
+	IndexConstraintFunction  = C.SQLITE_INDEX_CONSTRAINT_FUNCTION
+	IndexScanUnique          = C.SQLITE_INDEX_SCAN_UNIQUE
+)
+
+const (
+	OrderByAsc  uint8 = 0
+	OrderByDesc       = 1
+)
+
 type IndexConstraint struct {
 	Column   int
 	Operator uint8
@@ -31,8 +57,17 @@ type IndexOrderBy struct {
 	Direction uint8
 }
 
+type IndexResult struct {
+	Usage           []bool
+	IndexNumber     int
+	IndexName       string
+	OrderByConsumed bool
+	EstimatedCost   float64
+	EstimatedRows   int64
+}
+
 type EponymousVirtualTable interface {
-	BestIndex(constraints []IndexConstraint, order []IndexOrderBy) error
+	BestIndex(constraints []IndexConstraint, order []IndexOrderBy) (IndexResult, error)
 	Disconnect() error
 	Open() (VirtualTableCursor, error)
 }
@@ -52,6 +87,19 @@ type Module interface {
 	Create() (VirtualTable, error)
 }
 
+func sqliteString(s string) *C.char {
+	ret := C.sqlite3_malloc(C.int(len(s) + 1))
+	if ret == nil {
+		panic("failed to allocate sqlite3 string: out of memory")
+	}
+
+	slice := unsafe.Slice((*byte)(ret), len(s)+1)
+	copy(slice, s)
+	slice[len(s)-1] = 0
+
+	return (*C.char)(ret)
+}
+
 func gosqliteError(err error, errmsg **C.char) C.int {
 	var (
 		code    C.int = C.SQLITE_ERROR
@@ -66,7 +114,7 @@ func gosqliteError(err error, errmsg **C.char) C.int {
 		message = err.Error()
 	}
 
-	*errmsg = C.CString(message)
+	*errmsg = sqliteString(message)
 
 	return code
 }
@@ -145,8 +193,55 @@ func gosqliteDestroy(handle unsafe.Pointer, errmsg **C.char) C.int {
 	return C.SQLITE_OK
 }
 
-//export gosqliteBestIndexImpl
-func gosqliteBestIndexImpl() {
+//export gosqliteBestIndex
+func gosqliteBestIndex(handle unsafe.Pointer, out unsafe.Pointer, errmsg **C.char) C.int {
+	vtable := cgo.Handle(handle).Value().(EponymousVirtualTable)
+	info := (*C.sqlite3_index_info)(out)
+
+	constraintsSlice := unsafe.Slice(info.aConstraint, int(info.nConstraint))
+	constraints := make([]IndexConstraint, len(constraintsSlice))
+	for i, constraint := range constraintsSlice {
+		constraints[i] = IndexConstraint{
+			Column:   int(constraint.iColumn),
+			Operator: uint8(constraint.op),
+			Usable:   constraint.usable != 0,
+		}
+	}
+
+	orderBySlice := unsafe.Slice(info.aOrderBy, int(info.nOrderBy))
+	orderBy := make([]IndexOrderBy, len(orderBySlice))
+	for i, order := range orderBySlice {
+		var direction = OrderByAsc
+
+		if order.desc != 0 {
+			direction = OrderByDesc
+		}
+
+		orderBy[i] = IndexOrderBy{
+			Column:    int(order.iColumn),
+			Direction: direction,
+		}
+	}
+
+	result, err := vtable.BestIndex(constraints, orderBy)
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
+	info.idxNum = C.int(result.IndexNumber)
+	info.idxStr = sqliteString(result.IndexName)
+	info.needToFreeIdxStr = C.int(1)
+
+	if result.OrderByConsumed {
+		info.orderByConsumed = C.int(1)
+	} else {
+		info.orderByConsumed = C.int(0)
+	}
+
+	info.estimatedCost = C.double(result.EstimatedCost)
+	info.estimatedRows = C.sqlite3_int64(result.EstimatedRows)
+
+	return C.SQLITE_OK
 }
 
 //export gosqliteOpen

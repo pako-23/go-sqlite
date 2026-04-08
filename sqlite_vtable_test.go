@@ -34,10 +34,10 @@ type MockVirtualTable struct {
 	mock.Mock
 }
 
-func (m *MockVirtualTable) BestIndex(constraints []sqlite.IndexConstraint, order []sqlite.IndexOrderBy) error {
+func (m *MockVirtualTable) BestIndex(constraints []sqlite.IndexConstraint, order []sqlite.IndexOrderBy) (sqlite.IndexResult, error) {
 	args := m.Called(constraints, order)
 
-	return args.Error(0)
+	return args.Get(0).(sqlite.IndexResult), args.Error(0)
 }
 
 func (m *MockVirtualTable) Disconnect() error {
