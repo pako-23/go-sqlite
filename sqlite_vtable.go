@@ -98,7 +98,7 @@ func sqliteString(s string) *C.char {
 
 	slice := unsafe.Slice((*byte)(ret), len(s)+1)
 	copy(slice, s)
-	slice[len(s)-1] = 0
+	slice[len(slice)-1] = 0
 
 	return (*C.char)(ret)
 }

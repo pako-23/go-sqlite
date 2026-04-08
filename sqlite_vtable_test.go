@@ -37,7 +37,7 @@ type MockVirtualTable struct {
 func (m *MockVirtualTable) BestIndex(constraints []sqlite.IndexConstraint, order []sqlite.IndexOrderBy) (sqlite.IndexResult, error) {
 	args := m.Called(constraints, order)
 
-	return args.Get(0).(sqlite.IndexResult), args.Error(0)
+	return args.Get(0).(sqlite.IndexResult), args.Error(1)
 }
 
 func (m *MockVirtualTable) Disconnect() error {
@@ -56,6 +56,30 @@ func (m *MockVirtualTable) Open() (sqlite.VirtualTableCursor, error) {
 	args := m.Called()
 
 	return args.Get(0).(sqlite.VirtualTableCursor), args.Error(1)
+}
+
+type MockCursor struct {
+	mock.Mock
+}
+
+func (m *MockCursor) Close() error { return m.Called().Error(0) }
+
+func (m *MockCursor) Filter(indexId int, indexName string, values []any) error {
+	return m.Called(indexId, indexName, values).Error(0)
+}
+
+func (m *MockCursor) Next() error { return m.Called().Error(0) }
+
+func (m *MockCursor) EOF() bool { return m.Called().Bool(0) }
+
+func (m *MockCursor) Rowid() (int64, error) {
+	args := m.Called()
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockCursor) Column(column int) (any, error) {
+	args := m.Called(column)
+	return args.Get(0), args.Error(1)
 }
 
 func queryExec(conn *sqlite.Conn, query string) error {
@@ -126,4 +150,84 @@ func TestModuleDestroy(t *testing.T) {
 	require.NoError(t, conn.Close())
 	module.AssertExpectations(t)
 	vtable.AssertExpectations(t)
+}
+
+func TestVirtualTableIteration(t *testing.T) {
+	vtable := new(MockVirtualTable)
+	cursor := new(MockCursor)
+	module := new(MockModule)
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+
+	module.On("Declaration").Return("CREATE TABLE test(a INTEGER, b REAL, c TEXT, d BLOB, e INTEGER)")
+	module.On("Connect").Return(vtable, nil).Once()
+	vtable.On("Disconnect").Return(nil).Once()
+	vtable.On("Open").Return(cursor, nil).Once()
+	vtable.On("BestIndex", mock.Anything, mock.Anything).Return(sqlite.IndexResult{}, nil).Once()
+
+	cursor.On("Filter", 0, "", mock.Anything).Return(nil).Once()
+	cursor.On("EOF").Return(false).Twice()
+	cursor.On("EOF").Return(true).Once()
+
+	cursor.On("Rowid").Return(int64(0), nil).Once()
+	cursor.On("Rowid").Return(int64(1), nil).Once()
+	cursor.On("Column", 0).Return(int64(42), nil).Twice()
+
+	cursor.On("Column", 1).Return(3.14, nil).Twice()
+	cursor.On("Column", 2).Return("hello", nil).Twice()
+	cursor.On("Column", 3).Return([]byte{0xFF, 0x00}, nil).Once()
+	cursor.On("Column", 3).Return([]byte{}, nil).Once()
+	cursor.On("Column", 4).Return(nil, nil).Once()
+	cursor.On("Column", 4).Return(int64(10), nil).Once()
+	cursor.On("Next").Return(nil).Twice()
+	cursor.On("Close").Return(nil).Once()
+
+	require.NoError(t, conn.CreateModule("test_mod", module))
+	require.NoError(t, queryExec(conn, "CREATE VIRTUAL TABLE t1 USING test_mod"))
+
+	statement, err := conn.Prepare("SELECT ROWID, * FROM t1")
+	require.NoError(t, err)
+	require.Equal(t, 6, statement.ColumnCount())
+
+	names := make([]string, statement.ColumnCount())
+	for i := range names {
+		name, err := statement.ColumnName(i)
+		require.NoError(t, err)
+		names[i] = name
+	}
+
+	require.Equal(t, []string{"rowid", "a", "b", "c", "d", "e"}, names)
+
+	done, err := statement.Step()
+	require.NoError(t, err)
+	require.False(t, done)
+
+	row, err := statement.Row()
+	require.NoError(t, err)
+	require.Equal(t, int64(0), row[0])
+	require.Equal(t, int64(42), row[1])
+	require.Equal(t, 3.14, row[2])
+	require.Equal(t, "hello", row[3])
+	require.Equal(t, []byte{0xFF, 0x00}, row[4])
+	require.Nil(t, row[5])
+
+	done, err = statement.Step()
+	require.NoError(t, err)
+	require.False(t, done)
+
+	row, err = statement.Row()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), row[0])
+	require.Equal(t, int64(42), row[1])
+	require.Equal(t, 3.14, row[2])
+	require.Equal(t, "hello", row[3])
+	require.Equal(t, nil, row[4])
+	require.Equal(t, int64(10), row[5])
+
+	done, err = statement.Step()
+	require.NoError(t, err)
+	require.True(t, done)
+
+	require.NoError(t, statement.Finalize())
+	require.NoError(t, conn.Close())
 }

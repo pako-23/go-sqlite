@@ -145,8 +145,8 @@ func TestSimpleQueryRow(t *testing.T) {
 
 	require.Equal(t, 5, statement.ColumnCount())
 
-	names := make([]string, 5)
-	for i := range 5 {
+	names := make([]string, statement.ColumnCount())
+	for i := range names {
 		name, err := statement.ColumnName(i)
 		require.NoError(t, err)
 		names[i] = name
