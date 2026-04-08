@@ -145,6 +145,15 @@ func TestSimpleQueryRow(t *testing.T) {
 
 	require.Equal(t, 5, statement.ColumnCount())
 
+	names := make([]string, 5)
+	for i := range 5 {
+		name, err := statement.ColumnName(i)
+		require.NoError(t, err)
+		names[i] = name
+	}
+
+	require.Equal(t, []string{"id", "name", "pi", "data", "empty"}, names)
+
 	done, err := statement.Step()
 	require.NoError(t, err)
 	require.False(t, done)
@@ -189,6 +198,39 @@ func TestStatementErrors(t *testing.T) {
 
 		_, err = statement.Column(1)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid column number")
+		require.ErrorIs(t, err, sqlite.ErrInvalidColumnNumber)
+	})
+
+	t.Run("column negative", func(t *testing.T) {
+		statement, err := conn.Prepare("SELECT 1")
+		require.NoError(t, err)
+		defer statement.Finalize()
+
+		_, err = statement.Step()
+		require.NoError(t, err)
+
+		_, err = statement.Column(-1)
+		require.Error(t, err)
+		require.ErrorIs(t, err, sqlite.ErrInvalidColumnNumber)
+	})
+
+	t.Run("column name out of bounds", func(t *testing.T) {
+		statement, err := conn.Prepare("SELECT 1")
+		require.NoError(t, err)
+		defer statement.Finalize()
+
+		_, err = statement.ColumnName(1)
+		require.Error(t, err)
+		require.ErrorIs(t, err, sqlite.ErrInvalidColumnNumber)
+	})
+
+	t.Run("column name negative", func(t *testing.T) {
+		statement, err := conn.Prepare("SELECT 1")
+		require.NoError(t, err)
+		defer statement.Finalize()
+
+		_, err = statement.ColumnName(-1)
+		require.Error(t, err)
+		require.ErrorIs(t, err, sqlite.ErrInvalidColumnNumber)
 	})
 }

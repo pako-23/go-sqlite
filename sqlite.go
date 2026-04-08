@@ -12,6 +12,8 @@ import (
 	"unsafe"
 )
 
+var ErrInvalidColumnNumber = errors.New("invalid column number")
+
 const (
 	ResultCodeAbort      = C.SQLITE_ABORT
 	ResultCodeAuth       = C.SQLITE_AUTH
@@ -255,9 +257,17 @@ func (s *Statement) getColumn(i int) any {
 	}
 }
 
+func (s *Statement) ColumnName(i int) (string, error) {
+	if i < 0 || i >= s.ColumnCount() {
+		return "", ErrInvalidColumnNumber
+	}
+
+	return C.GoString(C.sqlite3_column_name(s.statement, C.int(i))), nil
+}
+
 func (s *Statement) Column(i int) (any, error) {
 	if i < 0 || i >= s.ColumnCount() {
-		return nil, errors.New("invalid column number")
+		return nil, ErrInvalidColumnNumber
 	}
 
 	return s.getColumn(i), nil
