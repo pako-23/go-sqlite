@@ -15,37 +15,37 @@ import (
 var ErrInvalidColumnNumber = errors.New("invalid column number")
 
 const (
-	ResultCodeAbort      = C.SQLITE_ABORT
-	ResultCodeAuth       = C.SQLITE_AUTH
-	ResultCodeBusy       = C.SQLITE_BUSY
-	ResultCodeCantOpen   = C.SQLITE_CANTOPEN
-	ResultCodeConstraint = C.SQLITE_CONSTRAINT
-	ResultCodeCorrupt    = C.SQLITE_CORRUPT
-	ResultCodeDone       = C.SQLITE_DONE
-	ResultCodeEmpty      = C.SQLITE_EMPTY
-	ResultCodeError      = C.SQLITE_ERROR
-	ResultCodeFormat     = C.SQLITE_FORMAT
-	ResultCodeFull       = C.SQLITE_FULL
-	ResultCodeInternal   = C.SQLITE_INTERNAL
-	ResultCodeInterrupt  = C.SQLITE_INTERRUPT
-	ResultCodeIOErr      = C.SQLITE_IOERR
-	ResultCodeLocked     = C.SQLITE_LOCKED
-	ResultCodeMismatch   = C.SQLITE_MISMATCH
-	ResultCodeMisuse     = C.SQLITE_MISUSE
-	ResultCodeNoLFS      = C.SQLITE_NOLFS
-	ResultCodeNoMem      = C.SQLITE_NOMEM
-	ResultCodeNotADB     = C.SQLITE_NOTADB
-	ResultCodeNotFound   = C.SQLITE_NOTFOUND
-	ResultCodeNotice     = C.SQLITE_NOTICE
-	ResultCodeOK         = C.SQLITE_OK
-	ResultCodePerm       = C.SQLITE_PERM
-	ResultCodeProtocol   = C.SQLITE_PROTOCOL
-	ResultCodeRange      = C.SQLITE_RANGE
-	ResultCodeReadOnly   = C.SQLITE_READONLY
-	ResultCodeRow        = C.SQLITE_ROW
-	ResultCodeSchema     = C.SQLITE_SCHEMA
-	ResultCodeTooBig     = C.SQLITE_TOOBIG
-	ResultCodeWarning    = C.SQLITE_WARNING
+	ResultCodeAbort      = int(C.SQLITE_ABORT)
+	ResultCodeAuth       = int(C.SQLITE_AUTH)
+	ResultCodeBusy       = int(C.SQLITE_BUSY)
+	ResultCodeCantOpen   = int(C.SQLITE_CANTOPEN)
+	ResultCodeConstraint = int(C.SQLITE_CONSTRAINT)
+	ResultCodeCorrupt    = int(C.SQLITE_CORRUPT)
+	ResultCodeDone       = int(C.SQLITE_DONE)
+	ResultCodeEmpty      = int(C.SQLITE_EMPTY)
+	ResultCodeError      = int(C.SQLITE_ERROR)
+	ResultCodeFormat     = int(C.SQLITE_FORMAT)
+	ResultCodeFull       = int(C.SQLITE_FULL)
+	ResultCodeInternal   = int(C.SQLITE_INTERNAL)
+	ResultCodeInterrupt  = int(C.SQLITE_INTERRUPT)
+	ResultCodeIOErr      = int(C.SQLITE_IOERR)
+	ResultCodeLocked     = int(C.SQLITE_LOCKED)
+	ResultCodeMismatch   = int(C.SQLITE_MISMATCH)
+	ResultCodeMisuse     = int(C.SQLITE_MISUSE)
+	ResultCodeNoLFS      = int(C.SQLITE_NOLFS)
+	ResultCodeNoMem      = int(C.SQLITE_NOMEM)
+	ResultCodeNotADB     = int(C.SQLITE_NOTADB)
+	ResultCodeNotFound   = int(C.SQLITE_NOTFOUND)
+	ResultCodeNotice     = int(C.SQLITE_NOTICE)
+	ResultCodeOK         = int(C.SQLITE_OK)
+	ResultCodePerm       = int(C.SQLITE_PERM)
+	ResultCodeProtocol   = int(C.SQLITE_PROTOCOL)
+	ResultCodeRange      = int(C.SQLITE_RANGE)
+	ResultCodeReadOnly   = int(C.SQLITE_READONLY)
+	ResultCodeRow        = int(C.SQLITE_ROW)
+	ResultCodeSchema     = int(C.SQLITE_SCHEMA)
+	ResultCodeTooBig     = int(C.SQLITE_TOOBIG)
+	ResultCodeWarning    = int(C.SQLITE_WARNING)
 )
 
 func ResultCodeText(code int) string {
@@ -118,11 +118,11 @@ func ResultCodeText(code int) string {
 }
 
 const (
-	DataTypeInteger = C.SQLITE_INTEGER
-	DataTypeFloat   = C.SQLITE_FLOAT
-	DataTypeBlob    = C.SQLITE_BLOB
-	DataTypeNull    = C.SQLITE_NULL
-	DataTypeText    = C.SQLITE3_TEXT
+	DataTypeInteger = int(C.SQLITE_INTEGER)
+	DataTypeFloat   = int(C.SQLITE_FLOAT)
+	DataTypeBlob    = int(C.SQLITE_BLOB)
+	DataTypeNull    = int(C.SQLITE_NULL)
+	DataTypeText    = int(C.SQLITE3_TEXT)
 )
 
 type Error struct {

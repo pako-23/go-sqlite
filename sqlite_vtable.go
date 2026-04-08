@@ -15,8 +15,8 @@ import (
 var (
 	ErrUnsupportedColumnType = errors.New("sqlite3 error: unsupported column type")
 	ErrInsertionNotSupported = errors.New("sqlite3 error: insertion not supported on virtual table")
-	ErrDeletionNotSupported  = errors.New("sqlite3 error: insertion not supported on virtual table")
-	ErrUpdateNotSupported    = errors.New("sqlite3 error: insertion not supported on virtual table")
+	ErrDeletionNotSupported  = errors.New("sqlite3 error: deletion not supported on virtual table")
+	ErrUpdateNotSupported    = errors.New("sqlite3 error: update not supported on virtual table")
 )
 
 type VirtualTableCursor interface {
@@ -29,29 +29,29 @@ type VirtualTableCursor interface {
 }
 
 const (
-	IndexConstraintEq        = C.SQLITE_INDEX_CONSTRAINT_EQ
-	IndexConstraintGt        = C.SQLITE_INDEX_CONSTRAINT_GT
-	IndexConstraintLe        = C.SQLITE_INDEX_CONSTRAINT_LE
-	IndexConstraintLt        = C.SQLITE_INDEX_CONSTRAINT_LT
-	IndexConstraintGe        = C.SQLITE_INDEX_CONSTRAINT_GE
-	IndexConstraintMatch     = C.SQLITE_INDEX_CONSTRAINT_MATCH
-	IndexConstraintLike      = C.SQLITE_INDEX_CONSTRAINT_LIKE
-	IndexConstraintGlob      = C.SQLITE_INDEX_CONSTRAINT_GLOB
-	IndexConstraintRegExp    = C.SQLITE_INDEX_CONSTRAINT_REGEXP
-	IndexConstraintNe        = C.SQLITE_INDEX_CONSTRAINT_NE
-	IndexConstraintIsNot     = C.SQLITE_INDEX_CONSTRAINT_ISNOT
-	IndexConstraintIsNotNull = C.SQLITE_INDEX_CONSTRAINT_ISNOTNULL
-	IndexConstraintIsNull    = C.SQLITE_INDEX_CONSTRAINT_ISNULL
-	IndexConstraintIs        = C.SQLITE_INDEX_CONSTRAINT_IS
-	IndexConstraintLimit     = C.SQLITE_INDEX_CONSTRAINT_LIMIT
-	IndexConstraintOffset    = C.SQLITE_INDEX_CONSTRAINT_OFFSET
-	IndexConstraintFunction  = C.SQLITE_INDEX_CONSTRAINT_FUNCTION
-	IndexScanUnique          = C.SQLITE_INDEX_SCAN_UNIQUE
+	IndexConstraintEq        = int(C.SQLITE_INDEX_CONSTRAINT_EQ)
+	IndexConstraintGt        = int(C.SQLITE_INDEX_CONSTRAINT_GT)
+	IndexConstraintLe        = int(C.SQLITE_INDEX_CONSTRAINT_LE)
+	IndexConstraintLt        = int(C.SQLITE_INDEX_CONSTRAINT_LT)
+	IndexConstraintGe        = int(C.SQLITE_INDEX_CONSTRAINT_GE)
+	IndexConstraintMatch     = int(C.SQLITE_INDEX_CONSTRAINT_MATCH)
+	IndexConstraintLike      = int(C.SQLITE_INDEX_CONSTRAINT_LIKE)
+	IndexConstraintGlob      = int(C.SQLITE_INDEX_CONSTRAINT_GLOB)
+	IndexConstraintRegExp    = int(C.SQLITE_INDEX_CONSTRAINT_REGEXP)
+	IndexConstraintNe        = int(C.SQLITE_INDEX_CONSTRAINT_NE)
+	IndexConstraintIsNot     = int(C.SQLITE_INDEX_CONSTRAINT_ISNOT)
+	IndexConstraintIsNotNull = int(C.SQLITE_INDEX_CONSTRAINT_ISNOTNULL)
+	IndexConstraintIsNull    = int(C.SQLITE_INDEX_CONSTRAINT_ISNULL)
+	IndexConstraintIs        = int(C.SQLITE_INDEX_CONSTRAINT_IS)
+	IndexConstraintLimit     = int(C.SQLITE_INDEX_CONSTRAINT_LIMIT)
+	IndexConstraintOffset    = int(C.SQLITE_INDEX_CONSTRAINT_OFFSET)
+	IndexConstraintFunction  = int(C.SQLITE_INDEX_CONSTRAINT_FUNCTION)
+	IndexScanUnique          = int(C.SQLITE_INDEX_SCAN_UNIQUE)
 )
 
 const (
 	OrderByAsc  uint8 = 0
-	OrderByDesc       = 1
+	OrderByDesc uint8 = 1
 )
 
 type IndexConstraint struct {
@@ -85,16 +85,16 @@ type VirtualTable interface {
 	Destroy() error
 }
 
+type VirtualTableDeleter interface {
+	Delete(id any) error
+}
+
 type VirtualTableInserter interface {
 	Insert(id any, values []any) (int64, error)
 }
 
 type VirtualTableUpdater interface {
 	Update(id any, values []any, newId ...any) error
-}
-
-type VirtualTableDeleter interface {
-	Delete(id any) error
 }
 
 type EponymousModule interface {
@@ -246,6 +246,16 @@ func gosqliteBestIndex(handle unsafe.Pointer, out unsafe.Pointer, errmsg **C.cha
 	result, err := vtable.BestIndex(constraints, orderBy)
 	if err != nil {
 		return gosqliteError(err, errmsg)
+	}
+
+	usageSlice := unsafe.Slice(info.aConstraintUsage, int(info.nConstraint))
+	argvIndex := 1
+	for i := range result.Usage {
+		if result.Usage[i] {
+			usageSlice[i].argvIndex = C.int(argvIndex)
+			usageSlice[i].omit = C.uchar(1)
+			argvIndex++
+		}
 	}
 
 	info.idxNum = C.int(result.IndexNumber)

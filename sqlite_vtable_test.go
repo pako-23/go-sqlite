@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pako-23/go-sqlite"
@@ -56,6 +57,24 @@ func (m *MockVirtualTable) Open() (sqlite.VirtualTableCursor, error) {
 	args := m.Called()
 
 	return args.Get(0).(sqlite.VirtualTableCursor), args.Error(1)
+}
+
+func (m *MockVirtualTable) Delete(id any) error {
+	args := m.Called(id)
+
+	return args.Error(0)
+}
+
+func (m *MockVirtualTable) Insert(id any, values []any) (int64, error) {
+	args := m.Called(id, values)
+
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockVirtualTable) Update(id any, values []any, newId ...any) error {
+	args := m.Called(id, values, newId)
+
+	return args.Error(0)
 }
 
 type MockCursor struct {
@@ -153,6 +172,8 @@ func TestModuleDestroy(t *testing.T) {
 }
 
 func TestVirtualTableIteration(t *testing.T) {
+	t.Parallel()
+
 	vtable := new(MockVirtualTable)
 	cursor := new(MockCursor)
 	module := new(MockModule)
@@ -230,4 +251,168 @@ func TestVirtualTableIteration(t *testing.T) {
 
 	require.NoError(t, statement.Finalize())
 	require.NoError(t, conn.Close())
+
+	module.AssertExpectations(t)
+	vtable.AssertExpectations(t)
+	cursor.AssertExpectations(t)
+}
+
+func TestVirtualTableUpdates(t *testing.T) {
+	t.Parallel()
+
+	vtable := new(MockVirtualTable)
+	module := new(MockModule)
+	cursor := new(MockCursor)
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+
+	module.On("Declaration").Return("CREATE TABLE test(a INTEGER PRIMARY KEY)")
+	module.On("Connect").Return(vtable, nil).Once()
+	vtable.On("Disconnect").Return(nil).Once()
+
+	require.NoError(t, conn.CreateModule("test_mod", module))
+	require.NoError(t, queryExec(conn, "CREATE VIRTUAL TABLE t1 USING test_mod"))
+
+	t.Run("insertion", func(t *testing.T) {
+		for i := 1; i < 4; i++ {
+			vtable.On("Insert", nil, []any{int64(i)}).Return(int64(i), nil).Once()
+		}
+
+		err = queryExec(conn, "INSERT INTO t1(a) VALUES (1), (2), (3)")
+		require.NoError(t, err)
+	})
+
+	t.Run("deletion rowid existing", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).Return(sqlite.IndexResult{}, nil).Once()
+		cursor.On("Filter", 0, "", mock.Anything).Return(nil).Once()
+		cursor.On("EOF").Return(false).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Close").Return(nil).Once()
+		cursor.On("Rowid").Return(int64(1), nil).Twice()
+		cursor.On("Next").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+		vtable.On("Delete", int64(1)).Return(nil).Once()
+
+		err = queryExec(conn, "DELETE FROM t1 WHERE ROWID = 1")
+		require.NoError(t, err)
+	})
+
+	t.Run("deletion rowid not existing", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).Return(sqlite.IndexResult{}, nil).Once()
+		cursor.On("Filter", 0, "", mock.Anything).Return(nil).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Close").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+
+		err = queryExec(conn, "DELETE FROM t1 WHERE ROWID = 1")
+		require.NoError(t, err)
+	})
+
+	t.Run("deletion key existing", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).
+			Return(sqlite.IndexResult{
+				IndexNumber: 0,
+				IndexName:   "a-column",
+				Usage:       []bool{true},
+			}, nil).Once()
+		cursor.On("Filter", 0, "a-column", []any{int64(1)}).Return(nil).Once()
+		cursor.On("EOF").Return(false).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Close").Return(nil).Once()
+		cursor.On("Rowid").Return(int64(0), nil)
+		cursor.On("Next").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+		vtable.On("Delete", int64(0)).Return(nil).Once()
+
+		err = queryExec(conn, "DELETE FROM t1 WHERE a = 1")
+		require.NoError(t, err)
+	})
+
+	t.Run("deletion key not existing", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).
+			Return(sqlite.IndexResult{
+				IndexNumber: 0,
+				IndexName:   "a-column",
+				Usage:       []bool{true},
+			}, nil).Once()
+		cursor.On("Filter", 0, "a-column", []any{int64(1)}).Return(nil).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Close").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+
+		err = queryExec(conn, "DELETE FROM t1 WHERE a = 1")
+		require.NoError(t, err)
+	})
+
+	require.NoError(t, conn.Close())
+	cursor.AssertExpectations(t)
+	vtable.AssertExpectations(t)
+	module.AssertExpectations(t)
+}
+
+func TestVirtualTableUpdatesNoRowid(t *testing.T) {
+	t.Parallel()
+
+	vtable := new(MockVirtualTable)
+	module := new(MockModule)
+	cursor := new(MockCursor)
+	conn, err := sqlite.Open(":memory:")
+	require.NoError(t, err)
+
+	module.On("Declaration").Return("CREATE TABLE test(a TEXT PRIMARY KEY) WITHOUT ROWID")
+	module.On("Connect").Return(vtable, nil).Once()
+	vtable.On("Disconnect").Return(nil).Once()
+
+	require.NoError(t, conn.CreateModule("test_mod", module))
+	require.NoError(t, queryExec(conn, "CREATE VIRTUAL TABLE t1 USING test_mod"))
+
+	t.Run("insertion", func(t *testing.T) {
+		for i := 1; i < 4; i++ {
+			vtable.On("Insert", nil, []any{fmt.Sprintf("%d", i)}).Return(int64(0), nil).Once()
+		}
+
+		err = queryExec(conn, "INSERT INTO t1(a) VALUES ('1'), ('2'), ('3')")
+		require.NoError(t, err)
+	})
+
+	t.Run("deletion existing", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).
+			Return(sqlite.IndexResult{
+				IndexNumber: 0,
+				IndexName:   "a-column",
+				Usage:       []bool{true},
+			}, nil).Once()
+		cursor.On("Filter", 0, "a-column", []any{"1"}).Return(nil).Once()
+		cursor.On("EOF").Return(false).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Column", 0).Return(int64(1), nil).Once()
+		cursor.On("Close").Return(nil).Once()
+		cursor.On("Next").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+		vtable.On("Delete", "1").Return(nil).Once()
+
+		err = queryExec(conn, "DELETE FROM t1 WHERE a = '1'")
+		require.NoError(t, err)
+	})
+
+	t.Run("deletion not existing", func(t *testing.T) {
+		vtable.On("BestIndex", mock.Anything, mock.Anything).
+			Return(sqlite.IndexResult{
+				IndexNumber: 0,
+				IndexName:   "a-column",
+				Usage:       []bool{true},
+			}, nil).Once()
+		cursor.On("Filter", 0, "a-column", []any{"1"}).Return(nil).Once()
+		cursor.On("EOF").Return(true).Once()
+		cursor.On("Close").Return(nil).Once()
+		vtable.On("Open").Return(cursor, nil).Once()
+
+		err = queryExec(conn, "DELETE FROM t1 WHERE a = '1'")
+		require.NoError(t, err)
+	})
+
+	require.NoError(t, conn.Close())
+	cursor.AssertExpectations(t)
+	vtable.AssertExpectations(t)
+	module.AssertExpectations(t)
 }
