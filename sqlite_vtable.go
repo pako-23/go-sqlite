@@ -94,7 +94,7 @@ type VirtualTableInserter interface {
 }
 
 type VirtualTableUpdater interface {
-	Update(id any, values []any, newId ...any) error
+	Update(id any, values []any) error
 }
 
 type EponymousModule interface {
