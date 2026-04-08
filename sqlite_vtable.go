@@ -7,16 +7,19 @@ package sqlite
 */
 import "C"
 import (
+	"errors"
 	"runtime/cgo"
 	"unsafe"
 )
+
+var ErrUnsupportedColumnType = errors.New("sqlite3 error: unsupported column type")
 
 type VirtualTableCursor interface {
 	Close() error
 	Filter(indexId int, indexName string, values []any) error
 	Next() error
 	EOF() bool
-	Column(column int) error
+	Column(column int) (any, error)
 	Rowid() (int64, error)
 }
 
@@ -325,7 +328,45 @@ func gosqliteEOF(handle unsafe.Pointer) C.int {
 }
 
 //export gosqliteColumn
-func gosqliteColumn(column int) C.int {
+func gosqliteColumn(handle unsafe.Pointer, ctx *C.sqlite3_context, column C.int) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+
+	value, err := cursor.Column(int(column))
+	if err != nil {
+		serr, ok := err.(*Error)
+		if ok {
+			message := serr.Message
+			C.sqlite3_result_text(ctx, C.CString(message), C.int(len(message)), (*[0]byte)(C.gosqlite_free))
+			return C.int(serr.Code)
+		}
+
+		message := err.Error()
+		C.sqlite3_result_text(ctx, C.CString(message), C.int(len(message)), (*[0]byte)(C.gosqlite_free))
+
+		return C.SQLITE_ERROR
+	}
+
+	switch v := value.(type) {
+	case nil:
+		C.sqlite3_result_null(ctx)
+	case int64:
+		C.sqlite3_result_int64(ctx, C.sqlite3_int64(v))
+	case float64:
+		C.sqlite3_result_double(ctx, C.double(v))
+	case string:
+		C.sqlite3_result_text(ctx, C.CString(v), C.int(len(v)), (*[0]byte)(C.gosqlite_free))
+	case []byte:
+		if len(v) == 0 {
+			C.sqlite3_result_blob(ctx, nil, 0, nil)
+		} else {
+			C.sqlite3_result_blob(ctx, C.CBytes(v), C.int(len(v)), (*[0]byte)(C.gosqlite_free))
+		}
+	default:
+		message := ErrUnsupportedColumnType.Error()
+		C.sqlite3_result_text(ctx, C.CString(message), C.int(len(message)), (*[0]byte)(C.gosqlite_free))
+		return C.SQLITE_ERROR
+	}
+
 	return C.SQLITE_OK
 }
 

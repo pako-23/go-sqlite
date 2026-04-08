@@ -1,5 +1,6 @@
 #include "gosqlite_vtable.h"
 #include "sqlite3.h"
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -24,6 +25,7 @@ extern int gosqliteFilter(uintptr_t handle, int indexId, const char *indexName,
                           int argc, sqlite3_value **argv, char **errout);
 extern int gosqliteNext(uintptr_t handle, char **errout);
 extern int gosqliteEOF(uintptr_t handle);
+extern int gosqliteColumn(uintptr_t handle, sqlite3_context *ctx, int column);
 
 static void gosqlite_reset_error(struct sqlite3_vtab *vtable)
 {
@@ -166,7 +168,10 @@ static int gosqlite_eof(sqlite3_vtab_cursor *cursor)
 static int gosqlite_column(sqlite3_vtab_cursor *cursor, sqlite3_context *ctx,
 			   int column)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
+
+    gosqlite_reset_error(cursor->pVtab);
+    return gosqliteColumn(gocursor->handle, ctx, column);
 }
 
 static int gosqlite_rowid(sqlite3_vtab_cursor *cursor, sqlite_int64 *rowid)
@@ -240,4 +245,9 @@ int gosqlite_create_eponymous_module(sqlite3 *db, const char *name,
 {
 	return sqlite3_create_module(db, name, &gomodule_eponymous,
 				     (void *)module);
+}
+
+void gosqlite_free(void *ptr)
+{
+    free(ptr);
 }

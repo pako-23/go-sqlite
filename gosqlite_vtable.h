@@ -9,4 +9,6 @@ extern int gosqlite_create_module(sqlite3 * db, const char *name,
 extern int gosqlite_create_eponymous_module(sqlite3 * db, const char *name,
 					    uintptr_t module);
 
+extern void gosqlite_free(void *ptr);
+
 #endif
