@@ -27,6 +27,8 @@ extern int gosqliteNext(uintptr_t handle, char **errout);
 extern int gosqliteEOF(uintptr_t handle);
 extern int gosqliteColumn(uintptr_t handle, sqlite3_context *ctx, int column);
 extern int gosqliteRowid(uintptr_t handle, sqlite3_int64 *rowid, char **errout);
+extern int gosqliteUpdate(uintptr_t handle, int argc, sqlite3_value **argv,
+                          sqlite3_int64 *rowid, char **errout);
 
 static void gosqlite_reset_error(struct sqlite3_vtab *vtable)
 {
@@ -184,6 +186,15 @@ static int gosqlite_rowid(sqlite3_vtab_cursor *cursor, sqlite_int64 *rowid)
     return gosqliteRowid(gocursor->handle, rowid, &cursor->pVtab->zErrMsg);
 }
 
+static int gosqlite_update(sqlite3_vtab *vtable, int argc, sqlite3_value **argv,
+                           sqlite3_int64 *rowid)
+{
+    struct gosqlite_vtab *govtable = (struct gosqlite_vtab *)vtable;
+
+    gosqlite_reset_error(vtable);
+    return gosqliteUpdate(govtable->handle, argc, argv, rowid, &vtable->zErrMsg);
+}
+
 static const sqlite3_module gomodule = {
 	.iVersion = 0,
 	.xCreate = gosqlite_connect,
@@ -198,7 +209,7 @@ static const sqlite3_module gomodule = {
 	.xEof = gosqlite_eof,
 	.xColumn = gosqlite_column,
 	.xRowid = gosqlite_rowid,
-	.xUpdate = NULL,
+	.xUpdate = gosqlite_update,
 	.xBegin = NULL,
 	.xSync = NULL,
 	.xCommit = NULL,
@@ -226,7 +237,7 @@ static const sqlite3_module gomodule_eponymous = {
 	.xEof = gosqlite_eof,
 	.xColumn = gosqlite_column,
 	.xRowid = gosqlite_rowid,
-	.xUpdate = NULL,
+	.xUpdate = gosqlite_update,
 	.xBegin = NULL,
 	.xSync = NULL,
 	.xCommit = NULL,

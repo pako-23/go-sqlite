@@ -12,7 +12,12 @@ import (
 	"unsafe"
 )
 
-var ErrUnsupportedColumnType = errors.New("sqlite3 error: unsupported column type")
+var (
+	ErrUnsupportedColumnType = errors.New("sqlite3 error: unsupported column type")
+	ErrInsertionNotSupported = errors.New("sqlite3 error: insertion not supported on virtual table")
+	ErrDeletionNotSupported  = errors.New("sqlite3 error: insertion not supported on virtual table")
+	ErrUpdateNotSupported    = errors.New("sqlite3 error: insertion not supported on virtual table")
+)
 
 type VirtualTableCursor interface {
 	Close() error
@@ -78,6 +83,18 @@ type EponymousVirtualTable interface {
 type VirtualTable interface {
 	EponymousVirtualTable
 	Destroy() error
+}
+
+type VirtualTableInserter interface {
+	Insert(id any, values []any) (int64, error)
+}
+
+type VirtualTableUpdater interface {
+	Update(id any, values []any, newId ...any) error
+}
+
+type VirtualTableDeleter interface {
+	Delete(id any) error
 }
 
 type EponymousModule interface {
@@ -273,10 +290,7 @@ func gosqliteClose(handle unsafe.Pointer, errmsg **C.char) C.int {
 	return C.SQLITE_OK
 }
 
-//export gosqliteFilter
-func gosqliteFilter(handle unsafe.Pointer, indexId C.int, indexName *C.char, argc C.int, argv **C.sqlite3_value, errmsg **C.char) C.int {
-	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
-
+func gosqliteValues(argc C.int, argv **C.sqlite3_value) []any {
 	argvSlice := unsafe.Slice(argv, int(argc))
 	values := make([]any, argc)
 	for i, value := range argvSlice {
@@ -295,6 +309,14 @@ func gosqliteFilter(handle unsafe.Pointer, indexId C.int, indexName *C.char, arg
 			values[i] = nil
 		}
 	}
+
+	return values
+}
+
+//export gosqliteFilter
+func gosqliteFilter(handle unsafe.Pointer, indexId C.int, indexName *C.char, argc C.int, argv **C.sqlite3_value, errmsg **C.char) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+	values := gosqliteValues(argc, argv)
 
 	err := cursor.Filter(int(indexId), C.GoString(indexName), values)
 	if err != nil {
@@ -380,6 +402,56 @@ func gosqliteRowid(handle unsafe.Pointer, rowid *C.sqlite3_int64, errmsg **C.cha
 	}
 
 	*rowid = C.sqlite3_int64(id)
+
+	return C.SQLITE_OK
+}
+
+//export gosqliteUpdate
+func gosqliteUpdate(handle unsafe.Pointer, argc C.int, argv **C.sqlite3_value, rowid *C.sqlite3_int64, errmsg **C.char) C.int {
+	values := gosqliteValues(argc, argv)
+
+	switch {
+	case argc == 1:
+		vtable, ok := cgo.Handle(handle).Value().(VirtualTableDeleter)
+		if !ok {
+			return gosqliteError(ErrDeletionNotSupported, errmsg)
+		}
+
+		err := vtable.Delete(values[0])
+		if err != nil {
+			return gosqliteError(err, errmsg)
+		}
+
+	case argc > 1 && values[0] == nil:
+		vtable, ok := cgo.Handle(handle).Value().(VirtualTableInserter)
+		if !ok {
+			return gosqliteError(ErrInsertionNotSupported, errmsg)
+		}
+
+		id, err := vtable.Insert(values[1], values[2:])
+		if err != nil {
+			return gosqliteError(err, errmsg)
+		}
+
+		*rowid = C.sqlite3_int64(id)
+
+	default:
+		vtable, ok := cgo.Handle(handle).Value().(VirtualTableUpdater)
+		if !ok {
+			return gosqliteError(ErrUpdateNotSupported, errmsg)
+		}
+
+		var err error = nil
+		if values[0] == values[1] {
+			err = vtable.Update(values[0], values[2:])
+		} else {
+			err = vtable.Update(values[0], values[2:], values[1])
+		}
+
+		if err != nil {
+			return gosqliteError(err, errmsg)
+		}
+	}
 
 	return C.SQLITE_OK
 }
