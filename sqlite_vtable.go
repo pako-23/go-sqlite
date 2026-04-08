@@ -260,6 +260,13 @@ func gosqliteOpen(handle unsafe.Pointer, out *C.uintptr_t, errmsg **C.char) C.in
 
 //export gosqliteClose
 func gosqliteClose(handle unsafe.Pointer, errmsg **C.char) C.int {
+	cursor := cgo.Handle(handle).Value().(VirtualTableCursor)
+
+	err := cursor.Close()
+	if err != nil {
+		return gosqliteError(err, errmsg)
+	}
+
 	return C.SQLITE_OK
 }
 

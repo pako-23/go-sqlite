@@ -1,4 +1,5 @@
 #include "gosqlite_vtable.h"
+#include "sqlite3.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -19,7 +20,16 @@ extern int gosqliteDestroy(uintptr_t handle, char **errout);
 extern int gosqliteBestIndex(uintptr_t handle, void *out, char **errout);
 
 extern int gosqliteOpen(void *handle, uintptr_t *out, char **errout);
-extern int gosqliteClose(void *handle, char **errout);
+extern int gosqliteClose(uintptr_t handle, char **errout);
+
+static void gosqlite_reset_error(struct sqlite3_vtab *vtable)
+{
+    if (vtable->zErrMsg == NULL)
+        return;
+
+    sqlite3_free(vtable->zErrMsg);
+    vtable->zErrMsg = NULL;
+}
 
 static int gosqlite_setup_vtable(uintptr_t handle, sqlite3_vtab **vtable)
 {
@@ -63,12 +73,15 @@ static int gosqlite_best_index(sqlite3_vtab *vtable, sqlite3_index_info *info)
 {
     struct gosqlite_vtab *govtable = (struct gosqlite_vtab *)vtable;
 
+    gosqlite_reset_error(vtable);
     return gosqliteBestIndex(govtable->handle, info, &vtable->zErrMsg);
 }
 
 static int gosqlite_disconnect(sqlite3_vtab *vtable)
 {
     struct gosqlite_vtab *govtable = (struct gosqlite_vtab *)vtable;
+
+    gosqlite_reset_error(vtable);
     int rv = gosqliteDisconnect(govtable->handle, &vtable->zErrMsg);
     if (rv != SQLITE_OK)
         return rv;
@@ -82,6 +95,7 @@ static int gosqlite_destroy(sqlite3_vtab *vtable)
 {
 	struct gosqlite_vtab *govtable = (struct gosqlite_vtab *)vtable;
 
+    gosqlite_reset_error(vtable);
     int rv = gosqliteDestroy(govtable->handle, &vtable->zErrMsg);
     if (rv != SQLITE_OK)
         return rv;
@@ -100,6 +114,7 @@ static int gosqlite_open(sqlite3_vtab *vtable, sqlite3_vtab_cursor **out)
     return SQLITE_NOMEM;
 
   cursor->base.pVtab = vtable;
+  gosqlite_reset_error(vtable);
   int rv = gosqliteOpen(vtable, &cursor->handle, &vtable->zErrMsg);
   if (rv != SQLITE_OK) return rv;
 
@@ -110,7 +125,14 @@ static int gosqlite_open(sqlite3_vtab *vtable, sqlite3_vtab_cursor **out)
 
 static int gosqlite_close(sqlite3_vtab_cursor *cursor)
 {
-	return SQLITE_OK;
+    struct gosqlite_vtab_cursor *gocursor = (struct gosqlite_vtab_cursor *)cursor;
+
+    gosqlite_reset_error(cursor->pVtab);
+    int rv = gosqliteClose(gocursor->handle, &gocursor->base.pVtab->zErrMsg);
+    if (rv != SQLITE_OK) return rv;
+    sqlite3_free(cursor);
+
+    return SQLITE_OK;
 }
 
 static int gosqlite_filter(sqlite3_vtab_cursor *cursor, int indexId,
